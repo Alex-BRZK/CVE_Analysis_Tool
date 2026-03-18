@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🐱</text></svg>">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>User Guide — CVE Analysis Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<script>(function(){document.documentElement.setAttribute("data-theme",localStorage.getItem("theme")||"light")})();</script>
+<style>
+/* ── Doc layout ── */
+.doc-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 0;
+  max-width: 1060px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 20px;
+  align-items: start;
+  flex: 1;
+}
+/* Sidebar */
+.doc-sidebar {
+  position: sticky;
+  top: 64px;
+  padding-right: 24px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+.doc-sidebar::-webkit-scrollbar { width: 4px; }
+.doc-sidebar::-webkit-scrollbar-track { background: transparent; }
+.doc-sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.toc-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.toc-list { list-style: none; }
+.toc-item { margin-bottom: 1px; }
+.toc-link {
+  display: block;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-radius: 5px;
+  border-left: 2px solid transparent;
+  transition: color .15s, border-color .15s, background .15s;
+  line-height: 1.4;
+}
+.toc-link:hover { color: var(--text); background: var(--card-hover); }
+.toc-link.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+.toc-link.sub { padding-left: 18px; font-size: 11px; }
+.toc-sep { height: 1px; background: var(--border); margin: 8px 4px; }
+/* Content */
+.doc-content { min-width: 0; }
+.doc-section {
+  padding-bottom: 40px;
+  margin-bottom: 40px;
+  border-bottom: 1px solid var(--border);
+}
+.doc-section:last-child { border-bottom: none; }
+.section-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.section-title {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.section-subtitle {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 24px 0 8px;
+}
+.doc-p {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.75;
+  margin-bottom: 14px;
+  max-width: 680px;
+}
+.doc-p a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+/* Callouts */
+.callout {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  margin: 14px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 680px;
+}
+.callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.callout-info { background: rgba(37,99,235,.07); border: 1px solid rgba(37,99,235,.2); color: var(--text); }
+.callout-tip  { background: rgba(34,197,94,.07);  border: 1px solid rgba(34,197,94,.2);  color: var(--text); }
+.callout-warn { background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); color: var(--text); }
+/* Code inline */
+code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+/* Example card mockup */
+.mockup-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin: 14px 0;
+  max-width: 680px;
+  box-shadow: var(--shadow);
+}
+.mockup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mockup-meta { display: flex; flex-direction: column; gap: 3px; }
+.mockup-assigner {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(37,99,235,.08);
+  padding: 2px 7px;
+  border-radius: 4px;
+  width: fit-content;
+}
+.mockup-date { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+.mockup-cve-id { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--text); }
+.mockup-chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; max-width: 55%; }
+.mockup-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 20px;
+  font-size: 10px; font-weight: 500; color: var(--text-muted);
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.dot-ok       { background: #22c55e; }
+.dot-fail     { background: #ef4444; }
+.dot-noaff    { background: #f59e0b; }
+.dot-wait     { background: #94a3b8; }
+.dot-neterr   { background: #111827; }
+[data-theme="dark"] .dot-neterr { background: #cbd5e1; }
+
+.mockup-desc-table {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.mockup-desc-row { display: flex; border-bottom: 1px solid var(--border); }
+.mockup-desc-row:last-child { border-bottom: none; }
+.mockup-desc-src {
+  flex-shrink: 0; width: 80px; padding: 8px 6px; background: var(--bg);
+  border-right: 1px solid var(--border); display: flex; flex-wrap: wrap;
+  gap: 3px; justify-content: center; align-items: flex-start;
+}
+.mockup-desc-text { flex: 1; padding: 8px 12px; line-height: 1.6; font-size: 12px; }
+.src-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+/* CVSS mockup */
+.cvss-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.cvss-pill {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;
+  border-radius: 5px; font-family: var(--font-mono); font-size: 11px;
+  font-weight: 700; color: #fff;
+}
+.cvss-pill .v { opacity: .75; font-size: 9px; }
+.cvss-pill .s { font-size: 13px; }
+.cvss-pill .src { opacity: .7; font-size: 9px; }
+.pill-crit { background: #ef4444; }
+.pill-high { background: #f59e0b; }
+.pill-med  { background: #2563eb; }
+.pill-low  { background: #22c55e; }
+.pill-none { background: #94a3b8; }
+/* CWE mockup */
+.cwe-row { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.cwe-pill {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
+  border-radius: 5px; font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  background: rgba(124,58,237,.08); color: #7c3aed;
+  border: 1px solid rgba(124,58,237,.2);
+}
+[data-theme="dark"] .cwe-pill { background: rgba(167,139,250,.08); color: #a78bfa; border-color: rgba(167,139,250,.2); }
+.cwe-pill-name { font-family: var(--font-sans); font-weight: 400; font-size: 10px; color: var(--text-muted); }
+/* Dot legend table */
+.dot-table { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin: 14px 0; max-width: 580px; }
+.dot-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 9px 14px; border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.dot-row:last-child { border-bottom: none; }
+.dot-row:hover { background: var(--card-hover); }
+.dot-sample { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.dot-label { font-family: var(--font-mono); font-size: 11px; font-weight: 700; flex-shrink: 0; min-width: 100px; }
+.dot-desc { color: var(--text-muted); font-size: 12px; }
+/* CVSS color table */
+.cvss-color-table { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin: 14px 0; max-width: 500px; }
+.cvss-color-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.cvss-color-row:last-child { border-bottom: none; }
+.cvss-color-swatch {
+  width: 36px; height: 20px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: #fff;
+}
+.cvss-color-range { font-family: var(--font-mono); font-size: 12px; font-weight: 600; min-width: 70px; }
+.cvss-color-desc { font-size: 12px; color: var(--text-muted); }
+/* Steps */
+.steps { counter-reset: step-counter; max-width: 680px; }
+.step {
+  display: flex; gap: 14px; padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.step:last-child { border-bottom: none; }
+.step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.step-body { flex: 1; }
+.step-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.step-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+/* Responsive */
+@media (max-width: 760px) {
+  .doc-layout { grid-template-columns: 1fr; padding: 20px 14px; }
+  .doc-sidebar { display: none; }
+  .section-title { font-size: 18px; }
+}
+[id] { scroll-margin-top: 68px; }
+
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-top">
+    <a class="header-logo" href="index.html" title="CVE Analysis Tool">
+      <div class="logo-icon">CAT</div>
+      <h1>CVE Analysis Tool</h1>
+    </a>
+    <nav class="header-nav">
+      <a href="index.html" class="nav-link"><span class="nav-icon">🔎</span><span>Search</span></a>
+      <a href="user-guide.html" class="nav-link active"><span class="nav-icon">📖</span><span>User Guide</span></a>
+      <a href="technical-doc.html" class="nav-link"><span class="nav-icon">⚙️</span><span>Technical Docs</span></a>
+      <a href="changelog.html" class="nav-link"><span class="nav-icon">📋</span><span>Changelog</span></a>
+      <a href="contact.html" class="nav-link"><span class="nav-icon">✉</span><span>Contact</span></a>
+    </nav>
+    <div class="header-controls">
+      <button class="btn btn-ghost" onclick="toggleTheme()" title="Toggle theme">🌗</button>
+    </div>
+  </div>
+</header>
+
+<div class="doc-layout">
+  <!-- Sidebar TOC -->
+  <aside class="doc-sidebar">
+    <div class="toc-title">Contents</div>
+    <ul class="toc-list">
+      <li class="toc-item"><a class="toc-link" href="#intro">Introduction</a></li>
+      <li class="toc-item"><a class="toc-link" href="#search">Searching for CVEs</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#single">Single CVE lookup</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#batch">Batch search</a></li>
+      <li class="toc-item"><a class="toc-link" href="#card">Understanding a CVE card</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#card-header">Header &amp; metadata</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#source-dots">Source status dots</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#descriptions">Descriptions</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#cvss">CVSS scores</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#cwe">CWE classifications</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#refs">References</a></li>
+      <li class="toc-sep"></li>
+      <li class="toc-item"><a class="toc-link" href="#filter">Source filter</a></li>
+      <li class="toc-item"><a class="toc-link" href="#theme">Dark / Light mode</a></li>
+      <li class="toc-item"><a class="toc-link" href="#tips">Tips &amp; best practices</a></li>
+      <li class="toc-item"><a class="toc-link" href="#limitations">Known limitations</a></li>
+    </ul>
+  </aside>
+
+  <!-- Main content -->
+  <main class="doc-content">
+
+    <!-- INTRO -->
+    <section class="doc-section" id="intro">
+      <div class="section-eyebrow">Overview</div>
+      <h2 class="section-title">Introduction</h2>
+      <p class="doc-p">
+        <strong>CVE Analysis Tool</strong> (CAT) is a browser-based intelligence aggregator that pulls
+        vulnerability data for any CVE from <strong>differents sources</strong> simultaneously and presents
+        them side-by-side in a single, unified card. No registration required — all data is fetched live
+        on demand.
+      </p>
+      <p class="doc-p">
+        CAT is designed for security analysts, developers, and system administrators who need a quick,
+        consolidated view of a CVE without hopping between NVD, vendor advisories, and distribution
+        trackers. It is <em>not</em> a replacement for authoritative vendor advisories — treat it as a
+        starting point for your investigation. 
+      </p>
+      <p class="doc-p">
+        Its main strength is the aggregation of multiple sources and the implementation of quick access to 
+        other data sources. All information comes from external sources, and each of them is systematically 
+        referenced to ensure <strong>complete transparency</strong> on the origin of the data.
+      </p>
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>All data is fetched in real time from external APIs and pages. Results depend on those
+        services being available and may differ from what you'd find navigating to each source directly.
+        A CORS proxy is used to bypass browser restrictions — see the Technical Docs for details.</span>
+      </div>
+    </section>
+
+    <!-- SEARCH -->
+    <section class="doc-section" id="search">
+      <div class="section-eyebrow">Getting started</div>
+      <h2 class="section-title">Searching for CVEs</h2>
+
+      <h3 class="section-subtitle" id="single">Single CVE lookup</h3>
+      <p class="doc-p">Type or paste a CVE identifier into the search bar at the top of the page and press
+        <strong>Search</strong> (or hit <kbd>Enter</kbd>). CVE IDs must follow the standard format
+        <code>CVE-YYYY-NNNNN</code>.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">Type the CVE ID</div>
+            <div class="step-desc">Enter <code>CVE-2024-12345</code> in the search field. The <em>Search</em>
+              button activates as soon as a valid CVE pattern is detected.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title">Press Search or Enter</div>
+            <div class="step-desc">A skeleton card appears immediately while all sources are queried in parallel.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">Read the results</div>
+            <div class="step-desc">The card fills in progressively as each source responds. Descriptions,
+              CVSS scores, CWEs, and references update in real time — no need to wait for all sources.</div>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="section-subtitle" id="batch">Batch search (multiple CVEs)</h3>
+      <p class="doc-p">
+        CAT supports <strong>pasting a list of CVE IDs</strong> all at once. You can paste raw text,
+        email excerpts, scanner output, or anything containing CVE patterns — the tool automatically
+        extracts all valid identifiers and processes them one by one.
+      </p>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span>CVEs you have already searched in the current session are deduplicated — pasting the same
+        ID again does nothing. A 250 ms delay is added between consecutive CVEs to avoid rate-limiting.</span>
+      </div>
+    </section>
+
+    <!-- CVE CARD -->
+    <section class="doc-section" id="card">
+      <div class="section-eyebrow">Card anatomy</div>
+      <h2 class="section-title">Understanding a CVE card</h2>
+      <p class="doc-p">Each CVE renders as a self-contained card. Here is a fully-loaded example card with
+        each section labelled:</p>
+
+      <!-- Annotated mockup -->
+      <div class="mockup-card">
+        <div class="mockup-header">
+          <div class="mockup-meta">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+              <span class="mockup-assigner">mitre</span>
+              <span style="color:var(--border);font-size:11px">•</span>
+              <span class="mockup-date">15/01/2024</span>
+            </div>
+            <div class="mockup-cve-id">CVE-2024-12345</div>
+          </div>
+          <div class="mockup-chips">
+            <span class="mockup-chip"><span class="dot dot-ok"></span>NVD</span>
+            <span class="mockup-chip"><span class="dot dot-ok"></span>RedHat</span>
+            <span class="mockup-chip"><span class="dot dot-noaff"></span>SUSE</span>
+            <span class="mockup-chip"><span class="dot dot-fail"></span>Debian</span>
+            <span class="mockup-chip"><span class="dot dot-ok"></span>Ubuntu</span>
+            <span class="mockup-chip"><span class="dot dot-ok"></span>Microsoft</span>
+            <span class="mockup-chip"><span class="dot dot-fail"></span>Amazon</span>
+            <span class="mockup-chip"><span class="dot dot-neterr"></span>LibreOffice</span>
+          </div>
+        </div>
+        <div class="mockup-desc-table">
+          <div class="mockup-desc-row">
+            <div class="mockup-desc-src">
+              <span class="src-badge badge-cvelist">CVEList</span>
+              <span class="src-badge badge-nvd">NVD</span>
+            </div>
+            <div class="mockup-desc-text">A heap buffer overflow vulnerability in Example Library before 3.2.1 allows remote attackers to execute arbitrary code via a crafted network packet.</div>
+          </div>
+          <div class="mockup-desc-row">
+            <div class="mockup-desc-src">
+              <span class="src-badge badge-redhat">RedHat</span>
+            </div>
+            <div class="mockup-desc-text">A flaw was found in Example Library. An unauthenticated remote attacker can trigger a heap overflow leading to code execution in the context of the application user.</div>
+          </div>
+        </div>
+        <div class="cvss-row">
+          <span class="cvss-pill pill-crit"><span class="v">CVSS v3.1</span><span class="s">9.8</span><span class="src">NVD, RedHat</span></span>
+          <span class="cvss-pill pill-high"><span class="v">CVSS v2.0</span><span class="s">7.5</span><span class="src">NVD</span></span>
+        </div>
+        <div class="cwe-row">
+          <span class="cwe-pill">CWE-122<span class="cwe-pill-name"> — Heap-based Buffer Overflow</span></span>
+        </div>
+      </div>
+
+      <h3 class="section-subtitle" id="card-header">① Header &amp; metadata</h3>
+      <p class="doc-p">
+        The top-left corner shows the <strong>assigner</strong> — the organization that requested the CVE
+        from MITRE (e.g. <code>mitre</code>, <code>github_m</code>, <code>microsoft</code>). Clicking the
+        assigner badge opens the official CVE Record on cve.org. Next to it is the <strong>publication date</strong>
+        of the CVE entry.
+      </p>
+      <p class="doc-p">
+        If a CVE is not yet in the CVEList repository (GitHub CVEProject/cvelistV5), the card will show a
+        <strong>orange "Not in CVEList" label</strong> and a left-side orange border. This is common for
+        very recently reserved CVEs that haven't been assigned a description yet.
+      </p>
+
+      <h3 class="section-subtitle" id="source-dots">② Source status dots</h3>
+      <p class="doc-p">
+        All the sources is shown as a pill in the top-right of the card. The <strong>coloured dot</strong>
+        indicates the status for that source. Dots update in real time as responses arrive:
+      </p>
+      <div class="dot-table">
+        <div class="dot-row">
+          <span class="dot-sample" style="background:#94a3b8"></span>
+          <span class="dot-label">Waiting…</span>
+          <span class="dot-desc">The request is still in flight. The source is being queried.</span>
+        </div>
+        <div class="dot-row">
+          <span class="dot-sample" style="background:#22c55e"></span>
+          <span class="dot-label">Green — OK</span>
+          <span class="dot-desc">This source has data for the CVE (description, CVSS, or status).</span>
+        </div>
+        <div class="dot-row">
+          <span class="dot-sample" style="background:#f59e0b"></span>
+          <span class="dot-label">Amber — Not affected</span>
+          <span class="dot-desc">The source explicitly states the CVE does not affect their products (e.g. Debian "NOT-FOR-US", Red Hat "does not affect").</span>
+        </div>
+        <div class="dot-row">
+          <span class="dot-sample" style="background:#ef4444"></span>
+          <span class="dot-label">Red — Not found</span>
+          <span class="dot-desc">The source returned a 404 error or empty response. No advisory page exists for this CVE on that source.</span>
+        </div>
+        <div class="dot-row">
+          <span class="dot dot-neterr" style="width:10px;height:10px"></span>
+          <span class="dot-label">Black/White — Network error</span>
+          <span class="dot-desc">The proxy could not reach the source (timeout, DNS failure, or source unreachable)</span>
+        </div>
+      </div>
+      <p class="doc-p">
+        Clicking any source pill navigates to the source's advisory or detail page for that CVE in a new tab.
+      </p>
+      <div class="callout callout-warn">
+        <span class="callout-icon">⚠️</span>
+        <span>A <strong>red dot</strong> does not necessarily mean the CVE is unimportant — it just means
+        that particular source does not have a dedicated page. For example, LibreOffice and PostgreSQL will
+        be red for the vast majority of CVEs that don't affect their products.</span>
+      </div>
+
+      <h3 class="section-subtitle" id="descriptions">③ Descriptions</h3>
+      <p class="doc-p">
+        The description table groups all descriptions from all sources. Sources that provide the
+        <strong>exact same text</strong> are merged into a single row and their badges appear side-by-side
+        in the left column. Sources with a different description get their own row.
+      </p>
+      <p class="doc-p">
+        This is intentional: different vendors (e.g. Red Hat or Microsoft) often rephrase or
+        extend the NVD description to add context specific to their products. Having them on separate rows
+        lets you spot these differences at a glance.
+      </p>
+      <p class="doc-p">
+        The <strong>coloured source</strong> <span class="src-badge badge-nvd">badge</span> in the left column is a clickable link that opens the raw 
+        data source (JSON API, GitHub raw file, etc.) used to extract the description.
+      </p>
+
+      <h3 class="section-subtitle" id="cvss">④ CVSS scores</h3>
+      <p class="doc-p">
+        CVSS (Common Vulnerability Scoring System) scores quantify the severity of a vulnerability on a
+        0–10 scale. CAT shows all unique CVSS scores reported across all sources, deduplicating <em>(by version, score, vector triplet).</em> When multiple sources agree on the same score and
+        vector, they are listed together (e.g. <code>NVD, RedHat</code>).
+      </p>
+      <div class="cvss-color-table">
+        <div class="cvss-color-row">
+          <span class="cvss-color-swatch" style="background:#94a3b8">N/A</span>
+          <span class="cvss-color-range">0.0</span>
+          <span class="cvss-color-desc">None — No impact</span>
+        </div>
+        <div class="cvss-color-row">
+          <span class="cvss-color-swatch" style="background:#22c55e">LOW</span>
+          <span class="cvss-color-range">0.1 – 3.9</span>
+          <span class="cvss-color-desc">Low severity</span>
+        </div>
+        <div class="cvss-color-row">
+          <span class="cvss-color-swatch" style="background:#2563eb">MED</span>
+          <span class="cvss-color-range">4.0 – 6.9</span>
+          <span class="cvss-color-desc">Medium severity</span>
+        </div>
+        <div class="cvss-color-row">
+          <span class="cvss-color-swatch" style="background:#f59e0b">HIGH</span>
+          <span class="cvss-color-range">7.0 – 8.9</span>
+          <span class="cvss-color-desc">High severity</span>
+        </div>
+        <div class="cvss-color-row">
+          <span class="cvss-color-swatch" style="background:#ef4444">CRIT</span>
+          <span class="cvss-color-range">9.0 – 10.0</span>
+          <span class="cvss-color-desc">Critical severity</span>
+        </div>
+      </div>
+      <p class="doc-p">
+        Clicking a CVSS badge opens the corresponding NVD CVSS calculator pre-filled with the vector
+        string, allowing you to inspect each metric in detail.
+      </p>
+      <p class="doc-p">
+        CAT supports <strong>CVSS v2.0, v3.0, v3.1, and v4.0</strong>. The scores are sorted by decreasing value (highest first), then by CVSS score version (v3.x -> v4 -> v2). Different scores from
+        different sources for the same CVE are normal — vendors often provide their own CVSS analysis.
+      </p>
+
+      <h3 class="section-subtitle" id="cwe">⑤ CWE classifications</h3>
+      <p class="doc-p">
+        CWE (Common Weakness Enumeration) chips appear below the CVSS section. Each chip links to the
+        CWE detail page on cwe.mitre.org. The chip shows the CWE ID, its name (fetched live from MITRE
+        if not provided by the source), and the sources that reported it.
+      </p>
+      <p class="doc-p">
+        Multiple sources reporting the same CWE are merged. CWEs are sorted numerically by ID.
+      </p>
+
+      <h3 class="section-subtitle" id="refs">⑥ References</h3>
+      <p class="doc-p">
+        The references section lists all external URLs collected from all sources. References are deduplicated (the same URL from multiple sources shows an entry with merged source badges).
+      </p>
+      <p class="doc-p">
+        CAT automatically filters the links already present on source badges (for example, direct links to the NVD page for the CVE) and raw API files. References from sources that say "unaffected" also have their domain-specific links removed.
+      </p>
+      <p class="doc-p">
+        This reference list is therefore <strong>condensed</strong>.
+      </p>
+    </section>
+
+    <!-- FILTER -->
+    <section class="doc-section" id="filter">
+      <div class="section-eyebrow">Interface controls</div>
+      <h2 class="section-title">Source filter</h2>
+      <p class="doc-p">
+        The <strong>⊟ Filter</strong> button in the header opens a panel where you can enable or disable individual sources. When a source is disabled (Unless another active source shares the same information):
+      </p>
+      <ul style="font-size:14px;line-height:1.9;padding-left:20px;max-width:640px;margin-bottom:14px">
+        <li>Its description row is hidden.</li>
+        <li>Its CVSS badges are hidden.</li>
+        <li>Its reference links are hidden.</li>
+        <li>Its CWE chips are hidden.</li>
+      </ul>
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span><strong>NVD</strong> and <strong>CVEList</strong> are always visible and cannot be disabled
+        — they form the baseline. All other sources can be freely toggled. The filter is not persistent between sessions.</span>
+      </div>
+    </section>
+
+    <!-- THEME -->
+    <section class="doc-section" id="theme">
+      <div class="section-eyebrow">Interface controls</div>
+      <h2 class="section-title">Dark / Light mode</h2>
+      <p class="doc-p">
+        Click the <strong>🌗</strong> button in the top-right to toggle between light and dark themes.
+        Your preference is saved in <code>localStorage</code> and persists across page reloads and
+        browser restarts.
+      </p>
+    </section>
+
+    <!-- TIPS -->
+    <section class="doc-section" id="tips">
+      <div class="section-eyebrow">Pro tips</div>
+      <h2 class="section-title">Tips &amp; best practices</h2>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span><strong>Compare descriptions across sources.</strong> When NVD and Red Hat have different
+        descriptions on separate rows, Red Hat's version often contains more specific context about affected
+        products and components.</span>
+      </div>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span><strong>Watch for CISA KEV.</strong> If the CISA dot is green, the vulnerability is in
+        CISA's Known Exploited Vulnerabilities catalog — meaning it has been actively exploited in the wild
+        and US federal agencies are required to patch it. Treat these as high priority regardless of CVSS score.</span>
+      </div>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span><strong>Use amber dots to discard noise.</strong> If multiple distro sources (SUSE, Debian,
+        Ubuntu) show amber, the CVE likely doesn't affect those ecosystems. Combine with the filter to
+        hide their entries and focus on what matters to you.</span>
+      </div>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span><strong>Don't Clean CVE Batch.</strong> Don’t bother cutting out your reports or cleaning up your search to have a clean list of CVE IDs. Copy and paste the entire report into the search box — CAT extracts all <code>CVE-XXXX-XXXXX</code>
+        patterns automatically.</span>
+      </div>
+    </section>
+
+    <!-- LIMITATIONS -->
+    <section class="doc-section" id="limitations">
+      <div class="section-eyebrow">Caveats</div>
+      <h2 class="section-title">Known limitations</h2>
+      <p class="doc-p">
+        <strong>Data freshness:</strong> All data is fetched live on demand. For CVEs published very recently, some sources may not have ingested them yet — especially NVD, which can take few days or weeks after a CVE is reserved.
+      </p>
+      <p class="doc-p">
+        <strong>Amazon Linux:</strong> The Amazon Linux page is scraped via HTML. Layout changes on their
+        side can break extraction silently; the dot may show green even if parsing returned empty.
+      </p>
+      <p class="doc-p">
+        <strong>Oracle and PostgreSQL:</strong> Only CVEs that Oracle or PostgreSQL publish their own
+        dedicated advisory page for are detected. These are niche products — most CVEs will show red.
+      </p>
+      <p class="doc-p">
+        <strong>Network errors:</strong> CAT uses a CORS proxy. If the proxy is unavailable or a source
+        blocks the proxy IP, you will see black/white dots. This is a proxy issue, not a problem with your CVE.
+      </p>
+      <p class="doc-p">
+        <strong>Not a substitute for vendor advisories:</strong> Always verify with the official vendor
+        advisory before taking remediation decisions. CVSS scores, descriptions and sources reported here are informational only.
+      </p>
+    </section>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-left">
+      <div class="footer-logo-icon">CAT</div>
+      <span class="footer-brand-name">CVE Analysis Tool</span>
+      <span class="footer-sep">·</span>
+      <span class="footer-disclaimer">Live data — not a substitute for vendor advisories.</span>
+    </div>
+    <div class="footer-links">
+      <a href="user-guide.html">User Guide</a>
+      <a href="technical-doc.html">Tech Docs</a>
+      <a href="contact.html">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleTheme() {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("theme", next);
+}
+// Sidebar active link on scroll
+const sections = document.querySelectorAll(".doc-section");
+const tocLinks = document.querySelectorAll(".toc-link");
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      tocLinks.forEach(l => l.classList.toggle("active", l.getAttribute("href") === "#" + id));
+    }
+  });
+}, { rootMargin: "-20% 0% -70% 0%" });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

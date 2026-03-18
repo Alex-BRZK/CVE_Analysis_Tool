@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🐱</text></svg>">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Changelog — CVE Analysis Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<script>(function(){document.documentElement.setAttribute("data-theme",localStorage.getItem("theme")||"light")})();</script>
+<style>
+/* ── Changelog layout ── */
+.changelog-layout {
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 36px 20px;
+  flex: 1;
+}
+.changelog-header-area {
+  margin-bottom: 40px;
+}
+.changelog-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.changelog-title {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.changelog-lead {
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 580px;
+  line-height: 1.7;
+}
+/* Timeline */
+.timeline { position: relative; }
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 8px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+  border-radius: 2px;
+}
+.release {
+  position: relative;
+  padding: 0 0 40px 44px;
+}
+.release:last-child { padding-bottom: 0; }
+.release-dot {
+  position: absolute;
+  left: 5px;
+  top: 7px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--card);
+  background: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.release-dot.current { background: var(--accent); border-color: var(--card); }
+.release-dot.latest  { background: var(--cvss-low); border-color: var(--card); }
+.release-dot.minor   { background: var(--border); }
+.release-dot-inner {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: .9;
+}
+/* Release card */
+.release-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  box-shadow: var(--shadow);
+}
+.release-card.current-release {
+  border-color: rgba(37,99,235,.3);
+  box-shadow: var(--shadow), 0 0 0 3px rgba(37,99,235,.07);
+}
+.release-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.release-version {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  color: var(--text);
+}
+.release-version-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.release-date {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 3px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.release-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.tag-current  { background: rgba(37,99,235,.1);  color: var(--accent);    border: 1px solid rgba(37,99,235,.25); }
+.tag-feature  { background: rgba(34,197,94,.08); color: #16a34a;          border: 1px solid rgba(34,197,94,.25); }
+.tag-fix      { background: rgba(245,158,11,.08); color: #b45309;         border: 1px solid rgba(245,158,11,.25); }
+.tag-initial  { background: rgba(100,116,139,.08); color: var(--text-muted); border: 1px solid var(--border); }
+/* Change list */
+.change-groups { display: flex; flex-direction: column; gap: 14px; }
+.change-group-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.change-group-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.change-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.change-item {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 5px 0;
+  border-bottom: 1px solid transparent;
+  color: var(--text);
+}
+.change-icon { font-size: 14px; flex-shrink: 0; width: 20px; text-align: center; }
+.change-text { flex: 1; }
+.change-text code {
+  font-family: var(--font-mono); font-size: 11px; background: var(--bg);
+  border: 1px solid var(--border); padding: 1px 5px; border-radius: 4px; color: var(--accent);
+}
+/* Screenshots area */
+.screenshots-area {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.screenshots-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.screenshot-static {
+  width: 80%;
+  max-width: 680px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  object-fit: cover;
+  display: block;
+}
+/* Source count badge (for release summary) */
+.src-count-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  background: var(--accent); color: #fff; padding: 1px 7px; border-radius: 4px;
+}
+/* Roadmap */
+.roadmap-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  box-shadow: var(--shadow);
+  margin-top: 40px;
+}
+.roadmap-title {
+  font-family: var(--font-mono); font-size: 16px; font-weight: 700;
+  color: var(--text); margin-bottom: 14px;
+}
+.roadmap-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.roadmap-item {
+  display: flex; gap: 10px; font-size: 13px; line-height: 1.6; color: var(--text-muted); padding: 4px 0;
+}
+.roadmap-icon { font-size: 13px; flex-shrink: 0; width: 20px; text-align: center; }
+@media (max-width: 600px) {
+  .changelog-layout { padding: 20px 14px; }
+  .changelog-title { font-size: 22px; }
+  .release { padding-left: 34px; }
+  .release-card { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-top">
+    <a class="header-logo" href="index.html" title="CVE Analysis Tool">
+      <div class="logo-icon">CAT</div>
+      <h1>CVE Analysis Tool</h1>
+    </a>
+    <nav class="header-nav">
+      <a href="index.html" class="nav-link"><span class="nav-icon">🔎</span><span>Search</span></a>
+      <a href="user-guide.html" class="nav-link"><span class="nav-icon">📖</span><span>User Guide</span></a>
+      <a href="technical-doc.html" class="nav-link"><span class="nav-icon">⚙️</span><span>Technical Docs</span></a>
+      <a href="changelog.html"     class="nav-link active"><span class="nav-icon">📋</span><span>Changelog</span></a>
+      <a href="contact.html" class="nav-link"><span class="nav-icon">✉</span><span>Contact</span></a>
+    </nav>
+    <div class="header-controls">
+      <button class="btn btn-ghost" onclick="toggleTheme()" title="Toggle theme">🌗</button>
+    </div>
+  </div>
+</header>
+
+<div class="changelog-layout">
+  <div class="changelog-header-area">
+    <div class="changelog-eyebrow">Version history</div>
+    <h1 class="changelog-title">Changelog</h1>
+    <p class="changelog-lead">
+      A chronological record of all CAT releases, improvements, and fixes.
+    </p>
+  </div>
+
+  <div class="timeline">
+
+    <!-- ─── CURRENT RELEASE ─────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot current"><div class="release-dot-inner"></div></div>
+      <div class="release-card current-release">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v1.0 — Current</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Full multi-source aggregator - First version publishing</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-current">Current</span>
+            <span class="release-date">18/03/2026</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Feature</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>CISA KEV</strong> — JSON feed, fetched once per session and shared across all cards -> Description, CWE</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Oracle</strong> — HTML scraping of oracle.com security-alerts -> Description</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Xen</strong> — HTML scraping and Json search -> Description</span></li>
+              <li class="change-item"><span class="change-icon">🖥️</span><span class="change-text">Creation of the "Changelog" and "Contact" pages</span></li>
+            </ul>
+            <div class="change-group-label">Improvement</div>
+                <ul class="change-list">
+                  <li class="change-item"><span class="change-icon">🖌️</span><span class="change-text">Separate page "About" in "Technical Docs" and "User Guide"</span></li>
+                  <li class="change-item"><span class="change-icon">🩹</span><span class="change-text">Correction of few bugs in search method</span></li>
+                  <li class="change-item"><span class="change-icon">💨</span><span class="change-text">File HTML split in multiple files (.js, .css ...)</span></li>
+                </ul>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    
+    <!-- ─── v0.9 ─────────────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot minor"></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v0.9</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Source filter · New sources</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
+            <span class="release-date">12/03/2026</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🔲</span><span class="change-text">Source filter panel — toggle any of the optional sources on/off; NVD and CVEList always visible</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Amazon Linux</strong> — HTML scraping -> Description, Score CVSS</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>LibreOffice</strong> — HTML scraping -> Description</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>PostgreSQL</strong> — HTML scraping -> Description, Score CVSS</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="screenshots-area">
+          <div class="screenshots-label">Screenshot</div>
+          <img src="screenshot/screenshot-v0.9.png" alt="Screenshot v0.9" class="screenshot-static" loading="lazy">
+        </div>
+      </div>
+    </div>
+    
+    <!-- ─── v0.8 ─────────────────────────────────────────────── -->
+      <div class="release">
+        <div class="release-dot minor"></div>
+        <div class="release-card">
+          <div class="release-card-top">
+            <div>
+              <div class="release-version">v0.8</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">References · CWE · Footer</div>
+            </div>
+            <div class="release-version-badges">
+              <span class="release-tag tag-feature">Feature</span>
+              <span class="release-date">21/02/2026</span>
+            </div>
+          </div>
+          <div class="change-groups">
+            <div class="change-group">
+              <div class="change-group-label">Added</div>
+              <ul class="change-list">
+                <li class="change-item"><span class="change-icon">🏷</span><span class="change-text"><strong>CWE chips section</strong> — aggregated from CVEList, NVD, CSAF sources; live name fetch from cwe.mitre.org when not provided</span></li>
+                <li class="change-item"><span class="change-icon">➕</span><span class="change-text"><strong>References section</strong> — collapsible panel listing all unique reference URLs</span></li>
+                <li class="change-item"><span class="change-icon">➕</span><span class="change-text">Not-affected domain suppression in references — URLs from a source's own domain hidden when that source reports non-affectedness</span></li>
+                <li class="change-item"><span class="change-icon">🔗</span><span class="change-text">References section — deduplicated, with self-referential and CSAF/VEX URLs excluded</span></li>
+                <li class="change-item"><span class="change-icon">👇</span><span class="change-text">Creation of a footer</span></li>
+              </ul>
+              <div class="change-group-label">Improvement</div>
+                <ul class="change-list">
+                  <li class="change-item"><span class="change-icon">⟳</span><span class="change-text">Loading spinner on references that disappears once all Phase-2 sources have settled</span></li>
+                  <li class="change-item"><span class="change-icon">🖥️</span><span class="change-text">Improvement of the interface</span></li>
+                </ul>
+            </div>
+          </div>
+          <div class="screenshots-area">
+            <div class="screenshots-label">Screenshot</div>
+            <img src="screenshot/screenshot-v0.8.png" alt="Screenshot v0.8" class="screenshot-static" loading="lazy">
+          </div>
+        </div>
+      </div>
+    
+    <!-- ─── v0.7 ─────────────────────────────────────────────── -->
+       <div class="release">
+        <div class="release-dot minor"></div>
+        <div class="release-card">
+          <div class="release-card-top">
+            <div>
+              <div class="release-version">v0.7</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">CVE batch search · Amber dot · Phase 1 / Phase 2 </div>
+            </div>
+            <div class="release-version-badges">
+              <span class="release-tag tag-feature">Feature</span>
+              <span class="release-date">02/02/2026</span>
+            </div>
+          </div>
+          <div class="change-groups">
+            <div class="change-group">
+              <div class="change-group-label">Added</div>
+              <ul class="change-list">
+                <li class="change-item"><span class="change-icon">🔎</span><span class="change-text">Single and batch CVE search — paste any text containing <code>CVE-YYYY-NNNNN</code> patterns</span></li>
+                <li class="change-item"><span class="change-icon">⚡</span><span class="change-text">Phase-1 / Phase-2 parallel fetch architecture — card renders immediately with CVEList + NVD, other sources fill the card independently</span></li>
+              </ul>
+              <div class="change-group-label">Improvement</div>
+                <ul class="change-list">
+                  <li class="change-item"><span class="change-icon">🟠</span><span class="change-text">Amber dot (not affected) works for Ubuntu, debian, Redhat and Suse</span></li>
+                  <li class="change-item"><span class="change-icon">🖥️</span><span class="change-text">Improvement of the interface</span></li>
+                  <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improved CVSS vector normalisation — strips environmental/temporal metrics for clean deduplication across all new sources</span></li>
+                </ul>
+            </div>
+          </div>
+          <div class="screenshots-area">
+            <div class="screenshots-label">Screenshot</div>
+            <img src="screenshot/screenshot-v0.7.png" alt="Screenshot v0.7" class="screenshot-static" loading="lazy" style= width:70%>
+          </div>
+        </div>
+      </div>
+    
+    <!-- ─── v0.6 ─────────────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot minor"></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v0.6</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">CVSS badge · Microsoft triple-source · About page</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
+            <span class="release-date">14/01/2026</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">📊</span><span class="change-text">CVSS v2.0, v3.0, v3.1, v4.0 support with colour-coded severity badges</span></li>
+              <li class="change-item"><span class="change-icon">⚠️</span><span class="change-text">"Not in CVEList" warning card for newly reserved but unpublished CVEs</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Microsoft triple-source cascade</strong> — CSAF VEX + SUG API + CIRCL fallback queried in parallel; description and CVSS taken from the first successful source</span></li>
+            </ul>
+            <div class="change-group-label">Improvement</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">➕</span><span class="change-text">Creation of the "About" page containing information on the functioning of the tool</span></li>
+              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improvement of the interface</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ─── v0.5 ─────────────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot minor"></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v0.5</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Badge sources · State link · Proxy</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
+            <span class="release-date">16/09/2025</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">📝</span><span class="change-text">Source description badge added on the left</span></li>
+              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Cloudflare Worker CORS proxy to bypass browser Same-Origin Policy restrictions</span></li>
+              <li class="change-item"><span class="change-icon">🟢</span><span class="change-text">5-state animated source dots: waiting (grey), ok (green), not-affected (amber), not-found (red), network-error (black/white)</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="screenshots-area">
+          <div class="screenshots-label">Screenshot</div>
+          <img src="screenshot/screenshot-v0.5.png" alt="Screenshot v0.5" class="screenshot-static" loading="lazy">
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── v0.4 ─────────────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot minor"></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v0.4</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Descriptions · CVSS deduplication </div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
+            <span class="release-date">06/06/2025</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>NVD</strong> — NIST REST API v2 -> description, CVSS v2/v3/v4</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Red Hat</strong> — CSAF VEX (primary) + Hydra legacy API (fallback CVSS) -> description, CVSS</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>SUSE</strong> — CSAF VEX via public FTP -> description, CVSS</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Debian</strong> — HTML scraping of security-tracker.debian.org -> description</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Ubuntu</strong> — Canonical JSON API with dual endpoint fallback + Ubuntu-specific description</span></li>
+            </ul>
+            <div class="change-group-label">Improvement</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">➕</span><span class="change-text"><strong>CVSS deduplication</strong> — scores grouped by (version, score, vector) triplet; multiple sources sharing the same score merged into one badge with combined source labels</span></li>
+              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improvement of the interface</li>
+            </ul>
+          </div>
+        </div>
+        <div class="screenshots-area">
+          <div class="screenshots-label">Screenshot</div>
+          <img src="screenshot/screenshot-v0.4.png" alt="Screenshot de la version" class="screenshot-static" loading="lazy" style= width:70%>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── v0.3 ─────────────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot minor"></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v0.3</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">CVSS score · Template card · Description deduplication</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
+            <span class="release-date">18/02/2025</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>CVEList</strong> — MITRE CVEProject/cvelistV5 GitHub repo (assigner, date, description, CVSS)</span></li>
+              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">CVSS v2.0, v3.0, v3.1 support; assigner + publication date from CVEList metadata</span></li>
+              <li class="change-item"><span class="change-icon">♦️</span><span class="change-text">The sources are now in the top right as clickable pill</span></li>
+              <li class="change-item"><span class="change-icon">📝</span><span class="change-text">Description deduplication — identical descriptions from multiple sources merged into a single row</span></li>
+              <li class="change-item"><span class="change-icon">🔎</span><span class="change-text">Single CVE search with skeleton loading card</span></li>
+            </ul>
+            <div class="change-group-label">Removed</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">➖</span><span class="change-text">References fields set aside to focus on scores and description</span></li>
+            </ul>
+            <div class="change-group-label">Improvement</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improvement of the interface (redesign of the HTML/CSS graphic charter)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="screenshots-area">
+          <div class="screenshots-label">Screenshot</div>
+          <img src="screenshot/screenshot-v0.3.png" alt="v0.3 screenshot" class="screenshot-static" loading="lazy">
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── v0.2 ─────────────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot minor"></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v0.2</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Data · Link state · Style</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
+            <span class="release-date">07/09/2024</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Primary source information:</strong>  Retrieval of the description and references from the NVD</span></li>
+              <li class="change-item"><span class="change-icon">🟢</span><span class="change-text">2-state source status dots : reachable/unreachable (green/red)</span></li>
+              <li class="change-item"><span class="change-icon">🌗</span><span class="change-text">Dark / Light mode with <code>localStorage</code> persistence</span></li>
+            </ul>
+            <div class="change-group-label">Improvement</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improvement of the interface (redesign of the HTML/CSS graphic charter)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="screenshots-area">
+          <div class="screenshots-label">Screenshot</div>
+          <img src="screenshot/screenshot-v0.2.png" alt="Screenshot version 0.2" class="screenshot-static" loading="lazy" style= width:60%>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── v0.1 ─────────────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot minor"></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v0.1</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Initial release</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-initial">Initial</span>
+            <span class="release-date">05/07/2024</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Foundation</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🎉</span><span class="change-text">First working version — single CVE search</span></li>
+              <li class="change-item"><span class="change-icon">⛓️‍</span><span class="change-text">Show redirecting links for sources identified</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="screenshots-area">
+          <div class="screenshots-label">Screenshot</div>
+          <img src="Screenshot\screenshot-v0.1.png" alt="Screenshot version 0.1" class="screenshot-static" loading="lazy">
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /timeline -->
+
+  <!-- Roadmap -->
+  <div class="roadmap-card">
+    <div class="roadmap-title">🖨️ Planned improvements</div>
+    <ul class="roadmap-list">
+      <li class="roadmap-item"><span class="roadmap-icon">🔜</span>Export card data to JSON or CSV</li>
+      <li class="roadmap-item"><span class="roadmap-icon">🔜</span>Additional sources</li>
+      <li class="roadmap-item"><span class="roadmap-icon">🔜</span>EPSS score integration (Exploit Prediction Scoring System)</li>
+      <li class="roadmap-item"><span class="roadmap-icon">🔜</span>Browser history / session persistence for already-searched CVEs</li>
+      <li class="roadmap-item"><span class="roadmap-icon">💡</span>Pull-request ideas welcome</li>
+    </ul>
+  </div>
+
+</div><!-- /changelog-layout -->
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-left">
+      <div class="footer-logo-icon">CAT</div>
+      <span class="footer-brand-name">CVE Analysis Tool</span>
+      <span class="footer-sep">·</span>
+      <span class="footer-disclaimer">Live data — not a substitute for vendor advisories.</span>
+    </div>
+    <div class="footer-links">
+      <a href="user-guide.html">User Guide</a>
+      <a href="technical-doc.html">Tech Docs</a>
+      <a href="contact.html">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleTheme() {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("theme", next);
+}
+</script>
+</body>
+</html>

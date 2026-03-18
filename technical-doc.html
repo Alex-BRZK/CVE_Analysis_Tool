@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🐱</text></svg>">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Technical Documentation — CVE Analysis Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<script>(function(){document.documentElement.setAttribute("data-theme",localStorage.getItem("theme")||"light")})();</script>
+<style>
+/* ── Doc layout (same as user-guide) ── */
+.doc-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 0;
+  max-width: 1060px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 20px;
+  align-items: start;
+  flex: 1;
+}
+.doc-sidebar {
+  position: sticky;
+  top: 64px;
+  padding-right: 24px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+.doc-sidebar::-webkit-scrollbar { width: 4px; }
+.doc-sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.toc-title {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;
+}
+.toc-list { list-style: none; }
+.toc-item { margin-bottom: 1px; }
+.toc-link {
+  display: block; padding: 4px 8px; font-size: 12px; color: var(--text-muted);
+  text-decoration: none; border-radius: 5px; border-left: 2px solid transparent;
+  transition: color .15s, border-color .15s, background .15s; line-height: 1.4;
+}
+.toc-link:hover { color: var(--text); background: var(--card-hover); }
+.toc-link.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+.toc-link.sub { padding-left: 18px; font-size: 11px; }
+.toc-sep { height: 1px; background: var(--border); margin: 8px 4px; }
+/* Content */
+.doc-content { min-width: 0; }
+.doc-section {
+  padding-bottom: 40px; margin-bottom: 40px; border-bottom: 1px solid var(--border);
+}
+.doc-section:last-child { border-bottom: none; }
+.section-eyebrow {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--accent); margin-bottom: 6px;
+}
+.section-title {
+  font-family: var(--font-mono); font-size: 22px; font-weight: 700;
+  letter-spacing: -.5px; color: var(--text); margin-bottom: 14px;
+}
+.section-subtitle {
+  font-family: var(--font-mono); font-size: 15px; font-weight: 700;
+  color: var(--text); margin: 24px 0 8px;
+}
+.doc-p {
+  font-size: 14px; color: var(--text); line-height: 1.75; margin-bottom: 14px; max-width: 720px;
+}
+.doc-p a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+code {
+  font-family: var(--font-mono); font-size: 12px; background: var(--bg);
+  border: 1px solid var(--border); padding: 1px 5px; border-radius: 4px; color: var(--accent);
+}
+pre {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 14px 16px; font-family: var(--font-mono); font-size: 12px; line-height: 1.7;
+  overflow-x: auto; margin: 12px 0 16px; max-width: 720px; color: var(--text);
+}
+pre .k { color: #7c3aed; font-weight: 700; }   /* keyword */
+pre .s { color: #0369a1; }                      /* string */
+pre .c { color: var(--text-muted); }            /* comment */
+[data-theme="dark"] pre .k { color: #a78bfa; }
+[data-theme="dark"] pre .s { color: #60a5fa; }
+/* Source card */
+.source-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 22px; margin: 16px 0; box-shadow: var(--shadow); max-width: 720px;
+}
+.source-card-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.source-card-badge {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  padding: 3px 10px; border-radius: 5px; color: #fff; flex-shrink: 0;
+}
+.source-card-name { font-family: var(--font-mono); font-size: 16px; font-weight: 700; }
+.source-card-type {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--text-muted);
+  border: 1px solid var(--border); padding: 2px 7px; border-radius: 4px;
+}
+.source-meta-grid {
+  display: grid; grid-template-columns: 100px 1fr; gap: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;
+  margin-bottom: 14px; font-size: 13px;
+}
+.meta-row { display: contents; }
+.meta-label {
+  padding: 7px 12px; background: var(--bg); border-bottom: 1px solid var(--border);
+  font-weight: 600; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+}
+.meta-val {
+  padding: 7px 14px; border-bottom: 1px solid var(--border);
+  font-size: 12px; word-break: break-all; color: var(--text);
+}
+.meta-row:last-child .meta-label,
+.meta-row:last-child .meta-val { border-bottom: none; }
+.meta-url { color: var(--accent); font-family: var(--font-mono); font-size: 11px; }
+/* Callout */
+.callout {
+  display: flex; gap: 12px; padding: 12px 16px; border-radius: var(--radius-sm);
+  margin: 12px 0; font-size: 13px; line-height: 1.6; max-width: 720px;
+}
+.callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.callout-info { background: rgba(37,99,235,.07); border: 1px solid rgba(37,99,235,.2); color: var(--text); }
+.callout-warn { background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); color: var(--text); }
+/* Architecture diagram */
+.arch-flow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 16px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); margin: 14px 0; max-width: 720px; font-size: 12px;
+}
+.arch-box {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 7px 12px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+}
+.arch-arrow { color: var(--text-muted); font-size: 14px; }
+/* Responsive */
+@media (max-width: 760px) {
+  .doc-layout { grid-template-columns: 1fr; padding: 20px 14px; }
+  .doc-sidebar { display: none; }
+  .section-title { font-size: 18px; }
+  pre { font-size: 11px; }
+}
+
+[id] { scroll-margin-top: 68px; }
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-top">
+    <a class="header-logo" href="index.html" title="CVE Analysis Tool">
+      <div class="logo-icon">CAT</div>
+      <h1>CVE Analysis Tool</h1>
+    </a>
+    <nav class="header-nav">
+      <a href="index.html" class="nav-link"><span class="nav-icon">🔎</span><span>Search</span></a>
+      <a href="user-guide.html" class="nav-link"><span class="nav-icon">📖</span><span>User Guide</span></a>
+      <a href="technical-doc.html" class="nav-link active"><span class="nav-icon">⚙️</span><span>Technical Docs</span></a>
+      <a href="changelog.html"     class="nav-link"><span class="nav-icon">📋</span><span>Changelog</span></a>
+      <a href="contact.html"       class="nav-link"><span class="nav-icon">✉</span><span>Contact</span></a>
+    </nav>
+    <div class="header-controls">
+      <button class="btn btn-ghost" onclick="toggleTheme()" title="Toggle theme">🌗</button>
+    </div>
+  </div>
+</header>
+
+<div class="doc-layout">
+  <aside class="doc-sidebar">
+    <div class="toc-title">Contents</div>
+    <ul class="toc-list">
+      <li class="toc-item"><a class="toc-link" href="#architecture">Architecture overview</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#proxy">CORS proxy</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#fetch-flow">Fetch flow</a></li>
+      <li class="toc-sep"></li>
+      <li class="toc-item"><a class="toc-link" href="#sources">Data sources</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-cvelist">CVEList</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-nvd">NVD</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-redhat">Red Hat</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-suse">SUSE</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-debian">Debian</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-ubuntu">Ubuntu</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-microsoft">Microsoft</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-amazon">Amazon Linux</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-libreoffice">LibreOffice</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-postgresql">PostgreSQL</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-oracle">Oracle</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-cisa">CISA KEV</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-xen">Xen</a></li>
+      <li class="toc-sep"></li>
+      <li class="toc-item"><a class="toc-link" href="#logic">Processing logic</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#cvss-logic">CVSS deduplication</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#desc-logic">Description grouping</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#cwe-logic">CWE collection</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#ref-logic">Reference filtering</a></li>
+      <li class="toc-sep"></li>
+      <li class="toc-item"><a class="toc-link" href="#filestructure">File structure</a></li>
+    </ul>
+  </aside>
+
+  <main class="doc-content">
+
+    <!-- ARCHITECTURE -->
+    <section class="doc-section" id="architecture">
+      <div class="section-eyebrow">System design</div>
+      <h2 class="section-title">Architecture overview</h2>
+      <p class="doc-p">
+        CAT is a <strong>fully client-side single-page application</strong>. There is no back-end server,
+        no database, and no user accounts. All data fetching, parsing, and rendering is performed in the
+        user's browser using vanilla JavaScript.
+      </p>
+      <div class="arch-flow">
+        <div class="arch-box">🌐 Browser</div>
+        <span class="arch-arrow">→</span>
+        <div class="arch-box">📡 CORS Proxy<br><span style="font-weight:400;opacity:.7">Workers</span></div>
+        <span class="arch-arrow">→</span>
+        <div class="arch-box">🔗 Source APIs<br><span style="font-weight:400;opacity:.7">Public sources</span></div>
+        <span class="arch-arrow">→</span>
+        <div class="arch-box">📦 Raw data<br><span style="font-weight:400;opacity:.7">JSON / HTML</span></div>
+        <span class="arch-arrow">→</span>
+        <div class="arch-box">⚙ Parser<br><span style="font-weight:400;opacity:.7">in-browser</span></div>
+        <span class="arch-arrow">→</span>
+        <div class="arch-box">🖥 DOM render</div>
+      </div>
+
+      <h3 class="section-subtitle" id="proxy">CORS proxy</h3>
+      <p class="doc-p">
+        Browsers enforce the <strong>Same-Origin Policy</strong>, which prevents JavaScript from fetching
+        resources from domains it didn't originate from. Since CAT needs to reach different external
+        origins, all requests are routed through a <strong>Cloudflare Worker proxy</strong> at:
+      </p>
+      <p class="doc-p">
+        The Worker fetches the target URL server-side and returns the response with permissive
+        <code>Access-Control-Allow-Origin: *</code> headers, bypassing the browser CORS restriction.
+        The Worker is stateless and does not store any request data.
+      </p>
+      <div class="callout callout-warn">
+        <span class="callout-icon">⚠️</span>
+        <span>If the proxy worker is unavailable, all source dots will show black/white (network error).
+        The proxy is the only blocking point that can prevent proper data retrieval.</span>
+      </div>
+
+      <h3 class="section-subtitle" id="fetch-flow">Fetch flow</h3>
+      <p class="doc-p">
+        For each CVE, fetches are organised in <strong>two phases</strong>:
+      </p>
+      <p class="doc-p">
+        <strong>Phase 1 (awaited):</strong> CVEList and NVD are fetched simultaneously.
+        These are the primary sources; their data is needed to build the initial card DOM —
+        assigner, date, base CVSS, initial CWEs, and initial references. The card is inserted into the
+        page once both resolve (or time out).
+      </p>
+      <p class="doc-p">
+        <strong>Phase 2 (parallel):</strong> All other sources are fetched simultaneously. Each source updates the card independently via <code>refreshCard()</code>. This allows the page to be useful before all secondary sources finish.
+      </p>
+      <p class="doc-p">
+        A 250 ms delay is added between cards when processing a batch search, avoiding request storms.
+        The spinning ⟳ icon on the References row disappears once all Phase 2 queries have settled.
+      </p>
+    </section>
+
+    <!-- SOURCES -->
+    <section class="doc-section" id="sources">
+      <div class="section-eyebrow">Data sources</div>
+      <h2 class="section-title">Data sources — detailed reference</h2>
+
+      <!-- CVEList -->
+      <div class="source-card" id="src-cvelist">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-cvelist">CVEList</span>
+          <span class="source-card-name">MITRE CVEList v5</span>
+          <span class="source-card-type">JSON (GitHub raw)</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">URL pattern</span>
+          <span class="meta-val meta-url">https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves/{YEAR}/{BUCKET}xxx/{CVE-ID}.json</span>
+          <span class="meta-label">Method</span>
+          <span class="meta-val">GET → JSON</span>
+          <span class="meta-label">Auth</span>
+          <span class="meta-val">None (public GitHub repo)</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          The <strong>bucket</strong> is obtained by taking the first digits depending on the size of the id (e.g. CVE-2024-<strong>12345</strong> → bucket <code>12xxx</code> or CVE-2024-<strong>1345</strong> → bucket <code>1xxx</code>).
+        </p>
+        <p class="doc-p" style="margin-bottom:8px">
+          <strong>Extracted fields:</strong> <code>Assigner</code>,
+          <code>Published date</code>,
+          <code>Descriptions</code>,
+          <code>Score CVSS</code>,
+          <code>CWE</code>,
+          <code>References urls</code>.
+        </p>
+        <p class="doc-p" style="margin-bottom:0">
+          This is the primary source. A <code>null</code> response (error network 404 from GitHub) means
+          the CVE has been reserved but not yet published — the card shows a "Not in CVEList" warning.
+        </p>
+      </div>
+
+      <!-- NVD -->
+      <div class="source-card" id="src-nvd">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-nvd">NVD</span>
+          <span class="source-card-name">NIST National Vulnerability Database</span>
+          <span class="source-card-type">REST API v2 (JSON)</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">URL pattern</span>
+          <span class="meta-val meta-url">https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={CVE-ID}</span>
+          <span class="meta-label">Method</span>
+          <span class="meta-val">GET → JSON</span>
+          <span class="meta-label">Auth</span>
+          <span class="meta-val">None (public API, optional API key for higher rate limits)</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          <strong>Extracted fields :</strong>
+          <code>Description</code>,
+          <code>Score CVSS</code>,
+          <code>CWE</code>,
+          <code>References urls</code>.
+        </p>
+        <p class="doc-p" style="margin-bottom:0">
+          NVD can lag behind CVEList by hours to weeks for newly published CVEs.
+        </p>
+        <div class="callout callout-warn">
+        <span class="callout-icon">⚠️</span>
+        <span>Currently, all extracted scores are automatically marked as coming from NVD, while in reality <strong>NVD aggregates and republishes scores from other providers</strong>. This means that the <span class="source-card-badge badge-nvd">NVD</span> label does not guarantee that the score was calculated by NVD itself.
+        </span>
+        </div>
+      </div>
+
+      <!-- Red Hat -->
+      <div class="source-card" id="src-redhat">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-redhat">RedHat</span>
+          <span class="source-card-name">Red Hat Security Advisory</span>
+          <span class="source-card-type">CSAF VEX (JSON) + Legacy REST API</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">Primary URL</span>
+          <span class="meta-val meta-url">https://security.access.redhat.com/data/csaf/v2/vex/{YEAR}/cve-{id}.json</span>
+          <span class="meta-label">Fallback URL</span>
+          <span class="meta-val meta-url">https://access.redhat.com/hydra/rest/securitydata/cve/{CVE-ID}.json</span>
+          <span class="meta-label">Format</span>
+          <span class="meta-val">CSAF VEX (primary) / Red Hat proprietary JSON (fallback)</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          Two requests are made in parallel (CASF VEX and legacy API). 
+        <p class="doc-p" style="margin-bottom:8px"><strong>Information extracted :</strong>       
+          <code>Description</code>,
+          <code>Score CVSS</code>,
+          <code>CWE</code>,
+          <code>References urls</code>.
+        </p>
+        <p class="doc-p" style="margin-bottom:8px">
+          The <strong>legacy API</strong> and the <strong>CSAF JSON</strong> work in a complementary way (if information is not found in one then we check in the other).
+        </p>
+      </div>
+
+      <!-- SUSE -->
+      <div class="source-card" id="src-suse">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-suse">SUSE</span>
+          <span class="source-card-name">SUSE Linux Enterprise</span>
+          <span class="source-card-type">CSAF VEX (JSON via FTP)</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">URL pattern</span>
+          <span class="meta-val meta-url">https://ftp.suse.com/pub/projects/security/csaf-vex/{cve-id-lowercase}.json</span>
+          <span class="meta-label">Format</span>
+          <span class="meta-val">CSAF VEX 2.0</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          Extraction follows the same CSAF VEX logic as Red Hat:     
+          <code>Description</code>,
+          <code>Score CVSS</code>,
+          <code>References urls</code>.
+        </p>
+        <div class="callout callout-warn">
+        <span class="callout-icon">⚠️</span>
+          <span>
+          I've noticed a discrepancy between the CVSS score provided on the
+          <a href="https://ftp.suse.com/pub/projects/security/csaf-vex/cve-2021-30952.json"> CSAF</a> 
+          and the score displayed on the 
+          <a href="https://www.suse.com/security/cve/CVE-2021-30952.html">SUSE website</a>. 
+          Therefore, I assume that the unique <strong>CVSS score in the CSAF file reflects SUSE's analysis</strong>.
+          </span>
+      </div>
+      </div>
+
+      <!-- Debian -->
+      <div class="source-card" id="src-debian">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-debian">Debian</span>
+          <span class="source-card-name">Debian Security Tracker</span>
+          <span class="source-card-type">HTML scraping</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">URL pattern</span>
+          <span class="meta-val meta-url">https://security-tracker.debian.org/tracker/{CVE-ID}</span>
+          <span class="meta-label">Method</span>
+          <span class="meta-val">GET HTML → DOMParser</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          The page is parsed to pick up the description. The HTML is also checked to detect if debian's product is concerns by this vulnerability.
+        </p>
+        <p class="doc-p" style="margin-bottom:8px">No CVSS data is
+          extracted from Debian (they don't publish their own scores). 
+        </p>
+        <p class="doc-p" style="margin-bottom:8px">The link used to extract the data is the same as the page link. 
+        </p>
+      </div>
+
+      <!-- Ubuntu -->
+      <div class="source-card" id="src-ubuntu">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-ubuntu">Ubuntu</span>
+          <span class="source-card-name">Ubuntu Security CVE Database</span>
+          <span class="source-card-type">JSON API</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">Primary URL</span>
+          <span class="meta-val meta-url">https://ubuntu.com/security/cves/{CVE-ID}.json</span>
+          <span class="meta-label">Fallback URL</span>
+          <span class="meta-val meta-url">https://ubuntu.com/security/api/v1/cves/{CVE-ID}</span>
+          <span class="meta-label">Format</span>
+          <span class="meta-val">Canonical proprietary JSON</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          <strong>Extracted fields:</strong> 
+          <code>Description</code>,
+          <code>Score CVSS</code>,
+          <code>References urls</code>.
+        </p>
+        <p class="doc-p" style="margin-bottom:0">
+          Like Redhat, the fallback URL is used to commplete the primary URL, if needed.
+        </p>
+      </div>
+
+      <!-- Microsoft -->
+      <div class="source-card" id="src-microsoft">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-microsoft">Microsoft</span>
+          <span class="source-card-name">Microsoft Security Response Center</span>
+          <span class="source-card-type">CSAF VEX + SUG API + CIRCL</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">CSAF URL</span>
+          <span class="meta-val meta-url">https://msrc.microsoft.com/csaf/vex/{YEAR}/msrc_{cve-lowercase}.json</span>
+          <span class="meta-label">SUG API</span>
+          <span class="meta-val meta-url">https://api.msrc.microsoft.com/sug/v2.0/en-US/vulnerability?$filter=cveNumber eq '{CVE-ID}'</span>
+          <span class="meta-label">CIRCL URL</span>
+          <span class="meta-val meta-url">https://cve.circl.lu/search?q=msrc_{cve-lowercase}</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          Multiple sources are queried in parallel. Priority order for description and CVSS:
+          <strong>CSAF &gt; SUG API &gt; CIRCL</strong>. This strategy was adopted to maximize the retrieval of information on Microsoft.
+        </p>
+        <p class="doc-p" style="margin-bottom:8px">
+          <strong>Extracted fields:</strong> 
+          <code>Description</code>,
+          <code>Score CVSS</code>,
+          <code>References urls</code>.
+        </p>
+        <p class="doc-p" style="margin-bottom:0">
+          <strong>Dot logic:</strong> Green if any of the three sources returns data. Dark (network error) only if both CSAF and SUG API return HTTP 0. Red otherwise.
+        <div class="callout callout-warn">
+          <span class="callout-icon">⚠️</span>
+          <span>
+            I noticed a discrepancy between these sources: Page, CSAF, Sug or CIRCL. 
+            So, I chose to retrieve as much information as possible in these sources.
+          </span>       
+        </div>
+        <p class="doc-p" style="margin-bottom:0">
+          <strong>Example :</strong> 
+          For the vulnerability <strong>CVE-2024-42317</strong>, the 
+          <a href="https://msrc.microsoft.com/csaf/vex/2024/msrc_cve-2024-42317.json">CSAF</a> file and the 
+          <a href="https://cve.circl.lu/vuln/msrc_cve-2024-42317">CIRCL</a> entry are reachable, 
+          but the <a href="https://api.msrc.microsoft.com/sug/v2.0/en-US/vulnerability?%24filter=cveNumber%20eq%20%27CVE-2024-42317%27">MSRC SUG</a> API 
+          and the <a href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2024-42317">MSRC Page</a> do not exist.
+        </p>
+      </div>
+
+      <!-- Amazon -->
+      <div class="source-card" id="src-amazon">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-amazon">Amazon</span>
+          <span class="source-card-name">Amazon Linux Security Center</span>
+          <span class="source-card-type">HTML scraping</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">URL pattern</span>
+          <span class="meta-val meta-url">https://explore.alas.aws.amazon.com/{CVE-ID}.html</span>
+          <span class="meta-label">Method</span>
+          <span class="meta-val">GET HTML → DOMParser</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          <strong>Extracted fields:</strong> 
+          <code>Description</code>,
+          <code>Score CVSS</code>.
+        </p>
+      </div>
+
+      <!-- LibreOffice -->
+      <div class="source-card" id="src-libreoffice">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-libreoffice">LibreOffice</span>
+          <span class="source-card-name">LibreOffice Security Advisories</span>
+          <span class="source-card-type">HTML scraping</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">URL pattern</span>
+          <span class="meta-val meta-url">https://www.libreoffice.org/about-us/security/advisories/{cve-lowercase}/</span>
+          <span class="meta-label">Method</span>
+          <span class="meta-val">GET HTML</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:0">
+          Only a description is provided by this editor, so it is extracted from HTML tags.
+        </p>
+      </div>
+
+      <!-- PostgreSQL -->
+      <div class="source-card" id="src-postgresql">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-postgresql">PostgreSQL</span>
+          <span class="source-card-name">PostgreSQL Security Information</span>
+          <span class="source-card-type">HTML scraping</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">URL pattern</span>
+          <span class="meta-val meta-url">https://www.postgresql.org/support/security/{CVE-ID}/</span>
+          <span class="meta-label">Method</span>
+          <span class="meta-val">GET HTML → DOMParser</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:0">
+            <strong>Extracted fields:</strong> 
+            <code>Description</code>,
+            <code>Score CVSS</code>.
+        </p>
+      </div>
+
+      <!-- Oracle -->
+      <div class="source-card" id="src-oracle">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-oracle">Oracle</span>
+          <span class="source-card-name">Oracle Security Alerts</span>
+          <span class="source-card-type">HTML scraping</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">URL pattern</span>
+          <span class="meta-val meta-url">https://www.oracle.com/security-alerts/alert-{cve-lowercase}.html</span>
+          <span class="meta-label">Method</span>
+          <span class="meta-val">GET HTML → DOMParser</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:0">
+          Due to HTML format, only the description is exported from this source. But the CVSS score is also provided.
+        </p>
+      </div>
+
+      <!-- CISA -->
+      <div class="source-card" id="src-cisa">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-cisa">CISA</span>
+          <span class="source-card-name">CISA Known Exploited Vulnerabilities Catalog</span>
+          <span class="source-card-type">JSON feed (cached)</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">Feed URL</span>
+          <span class="meta-val meta-url">https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json</span>
+          <span class="meta-label">Format</span>
+          <span class="meta-val">JSON with <code>vulnerabilities[]</code> array</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          The full CISA KEV feed is fetched <strong>once per browser session</strong> and cached in a
+          module-level variable. All subsequent CVE cards look up their ID directly in the in-memory
+          cache — no extra network request is made.
+        </p>
+          <p class="doc-p" style="margin-bottom:8px">
+            <strong>Extracted fields:</strong> 
+            <code>Description</code>,
+            <code>CWEs</code>,
+            <code>Reference urls</code>.
+        </p>
+      </div>
+      <!-- Xen -->
+      <div class="source-card" id="src-xen">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-xen">Xen</span>
+          <span class="source-card-name">Xen Security Advisories</span>
+          <span class="source-card-type">JSON</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">CVE URL</span>
+          <span class="meta-val meta-url">https://xenbits.xen.org/xsa/xsa.json</span>
+          <span class="meta-label">Advisory URL</span>
+          <span class="meta-val meta-url">https://xenbits.xen.org/xsa/advisory-${xsaNum}.html</span>
+          <span class="meta-label">Format</span>
+          <span class="meta-val">HMTL + JSON</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          Here the strategy is to see if the CVE is known by Xen, if so we retrieve the name of the associated notice to finally read this advisory and retrieve the desired information.
+        </p>
+        <p class="doc-p" style="margin-bottom:0">
+          Only the description is extracted by this editor.
+        </p>
+      </div>
+    </section>
+  </section>
+
+    <!-- PROCESSING LOGIC -->
+    <section class="doc-section" id="logic">
+      <div class="section-eyebrow">Internals</div>
+      <h2 class="section-title">Processing logic</h2>
+
+      <h3 class="section-subtitle" id="cvss-logic">CVSS deduplication</h3>
+      <p class="doc-p">
+        Every time a source returns CVSS data, <code>pushCvss(list, version, data, source)</code> is
+        called. It computes a <code>(version, score, vector)</code> triplet. If an identical triplet
+        already exists in <code>list</code>, the source name is appended to its <code>sources[]</code>
+        array. Otherwise a new entry is created. This means two sources reporting the exact same score
+        and vector are merged into one badge with both source names.
+      </p>
+      <p class="doc-p">
+        The vector is <strong>normalised</strong> to a canonical number of components before comparison:
+        6 for v2.0, 8 for v3.0/v3.1, 12 for v4.0 (extra metrics like environmental and temporal are
+        stripped). Scores are sorted descending by value; ties broken by version (v4.0 &gt; v3.1 &gt; v3.0 &gt; v2.0).
+      </p>
+
+      <h3 class="section-subtitle" id="desc-logic">Description grouping</h3>
+      <p class="doc-p">
+        Two descriptions are considered identical if their
+        <code>normalizeForComparison()</code> values match — this function lowercases, collapses
+        whitespace, normalises unicode quotes/dashes/ellipsis, and strips HTML tags.
+      </p>
+      <p class="doc-p">
+        The result is a list of <code>{text, sources[]}</code> objects rendered one per row in the
+        description table. This correctly handles cases where NVD copies CVEList verbatim, or where
+        a vendor slightly reformats text without changing meaning.
+      </p>
+
+      <h3 class="section-subtitle" id="cwe-logic">CWE collection</h3>
+      <p class="doc-p">
+        Deduplication is by CWE ID (uppercased, validated against
+        <code>/^CWE-\d+$/</code>). If a source provides a name and the entry has none yet, the name is
+        adopted. Sources are appended similarly to CVSS.
+      </p>
+      <p class="doc-p">
+        If any CWE entry is missing a name after collection, one function scrape the CWE detail page from <code>cwe.mitre.org</code> and extract the title from the page's <code>&lt;title&gt;</code> tag.
+      </p>
+
+      <h3 class="section-subtitle" id="ref-logic">Reference filtering</h3>
+      <p class="doc-p">
+        Collected references are filtered through two exclusion layers:
+      </p>
+      <p class="doc-p">
+        <strong>(1) Excluded URLs set:</strong> All the known source URLs for the current CVE
+        (e.g. the NVD detail page, all sources chip links, all raw data URLs) are pre-computed and excluded. This prevents the References section from being polluted with links that are already clickable via the source chips.
+      </p>
+      <p class="doc-p">
+        <strong>(2) Not-affected domain suppression:</strong> If a source is determined to be
+        "not-affected" (e.g. Ubuntu says DNE for all packages), its domain-specific links are filtered
+        out. For example, Ubuntu domain links are suppressed if Ubuntu is not-affected. This avoids
+        noisy references pointing to Ubuntu pages that merely confirm non-affectedness.
+      </p>
+    </section>
+
+    <!-- FILE STRUCTURE -->
+    <section class="doc-section" id="filestructure">
+      <div class="section-eyebrow">Project</div>
+      <h2 class="section-title">File structure</h2>
+      <pre>
+<span class="c">── Project root ───────────────────────────────────</span>
+  shared.css          <span class="c">CSS variables, header, footer,</span>
+                      <span class="c">nav, buttons — used by all pages</span>
+  app.js              <span class="c">All JS logic for the main page</span>
+                      <span class="c">(source configs, fetchers, DOM builders,</span>
+                      <span class="c">filter, theme toggle)</span>
+  index.html          <span class="c">Main CVE search page</span>
+                      <span class="c">Card-specific CSS inline + &lt;script src="app.js"&gt;</span>
+  user-guide.html     <span class="c">User guide</span>
+  technical-doc.html  <span class="c">Technical documentations</span>
+  changelog.html      <span class="c">Version history</span>
+  contact.html        <span class="c">Author information</span>
+<span class="c">────────────────────────────────────────────────────</span></pre>
+
+      <p class="doc-p">
+        Splitting into separate files provides several practical benefits: the main page's 1200-line <code>app.js</code> can be edited without touching HTML; <code>shared.css</code> ensures all pages share the same design tokens and navigation without copy-paste; and the three documentation pages are purely HTML/CSS with no dependency on <code>app.js</code>, so they load immediately.
+      </p>
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>All files are static — no build step, no bundler, no Node.js required.</span>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-left">
+      <div class="footer-logo-icon">CAT</div>
+      <span class="footer-brand-name">CVE Analysis Tool</span>
+      <span class="footer-sep">·</span>
+      <span class="footer-disclaimer">Live data — not a substitute for vendor advisories.</span>
+    </div>
+    <div class="footer-links">
+      <a href="user-guide.html">User Guide</a>
+      <a href="technical-doc.html">Tech Docs</a>
+      <a href="contact.html">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleTheme() {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("theme", next);
+}
+const sections = document.querySelectorAll(".doc-section, .source-card");
+const tocLinks = document.querySelectorAll(".toc-link");
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      tocLinks.forEach(l => l.classList.toggle("active", l.getAttribute("href") === "#" + id));
+    }
+  });
+}, { rootMargin: "-20% 0% -70% 0%" });
+sections.forEach(s => { if (s.id) observer.observe(s); });
+</script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🐱</text></svg>">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CVE Analysis Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<!-- Prevent theme flash -->
+<script>(function(){document.documentElement.setAttribute("data-theme",localStorage.getItem("theme")||"light")})();</script>
+<style>
+/* ---- CVE card styles (main page only) ---- */
+.main{display:flex;flex-direction:column;gap:20px}
+.cve-card{background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius);padding:22px 24px;box-shadow:var(--shadow);animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.cve-card.template{opacity:.55;pointer-events:none;border-style:dashed}
+.cve-card.no-cvelist{border-left:3px solid var(--cvss-high)}
+.skeleton-line{background:linear-gradient(90deg,var(--border) 25%,var(--card-hover) 50%,var(--border) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:4px;height:14px;margin-bottom:10px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+.card-meta-left{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.card-meta-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)}
+.assigner{font-family:var(--font-mono);font-weight:600;color:var(--accent);font-size:11px;
+  padding:2px 7px;background:rgba(37,99,235,.08);border-radius:4px;text-decoration:none}
+.assigner:hover{text-decoration:underline}
+.assigner.unknown{color:var(--text-muted);background:rgba(100,116,139,.1)}
+.card-meta-row .sep{color:var(--border)}
+.card-meta-row .date{font-family:var(--font-mono);font-size:11px}
+.cve-title{font-family:var(--font-mono);font-size:20px;font-weight:700;letter-spacing:-.5px;color:var(--text)}
+.card-chips-right{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;align-items:flex-start;max-width:55%}
+.source-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;
+  background:var(--bg);border:1px solid var(--border);border-radius:20px;
+  font-size:11px;font-weight:500;text-decoration:none;color:var(--text-muted);
+  transition:border-color .15s;white-space:nowrap}
+.source-chip:hover{border-color:var(--accent);color:var(--accent)}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;transition:background .3s}
+.dot-wait         {background:var(--text-muted)}
+.dot-unknown      {background:var(--text-muted)}
+.dot-networkerror {background:#111827}
+.dot-fail         {background:var(--cvss-critical)}
+.dot-ok           {background:var(--cvss-low)}
+.dot-notaffected  {background:var(--cvss-high)}
+[data-theme="dark"] .dot-networkerror{background:#cbd5e1}
+.desc-table{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:16px}
+.desc-row{display:flex;border-bottom:1px solid var(--border)}
+.desc-row:last-child{border-bottom:none}
+.desc-sources{flex-shrink:0;width:96px;padding:10px 8px;display:flex;
+  flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:4px;
+  background:var(--bg);border-right:1px solid var(--border)}
+.desc-text{flex:1;padding:10px 14px;font-size:14px;line-height:1.65;white-space:pre-line}
+.source-badge{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;
+  font-family:var(--font-mono);color:#fff;background:#475569;text-decoration:none;
+  display:inline-block;transition:opacity .15s,transform .1s}
+.source-badge:hover{opacity:.82;transform:scale(1.05);text-decoration:underline}
+/* Badge colors — must come after .source-badge to win specificity race */
+.source-badge.badge-cvelist  {background:#475569}
+.source-badge.badge-nvd      {background:#0369a1}
+.source-badge.badge-redhat   {background:#b91c1c}
+.source-badge.badge-suse     {background:#166534}
+.source-badge.badge-debian   {background:#fd2e6c}
+.source-badge.badge-ubuntu   {background:#e55300}
+.source-badge.badge-microsoft{background:#66a7dd}
+.source-badge.badge-amazon   {background:#ff9900;color:#000}
+.source-badge.badge-libreoffice{background:#18a303}
+.source-badge.badge-postgresql{background:#336791}
+.source-badge.badge-oracle   {background:#c74634}
+.source-badge.badge-cisa     {background:#003366}
+.source-badge.badge-xen      { background:#787879}
+.cvss-section{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.cvss-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;
+  border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:12px;
+  font-weight:600;color:#fff;text-decoration:none;transition:opacity .15s,transform .1s}
+.cvss-badge:hover{opacity:.85;transform:translateY(-1px)}
+.cvss-badge .version{opacity:.8;font-size:10px}
+.cvss-badge .score{font-size:14px}
+.cvss-badge .sources{opacity:.7;font-size:10px}
+.bg-none{background:var(--cvss-none)}.bg-low{background:var(--cvss-low)}
+.bg-medium{background:var(--cvss-medium)}.bg-high{background:var(--cvss-high)}
+.bg-critical{background:var(--cvss-critical)}
+.cwe-section{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;margin-bottom:12px}
+.cwe-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;
+  border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:11px;font-weight:600;
+  background:rgba(124,58,237,.08);color:#7c3aed;border:1px solid rgba(124,58,237,.2);
+  text-decoration:none;transition:background .15s,border-color .15s}
+.cwe-chip:hover{background:rgba(124,58,237,.16);border-color:rgba(124,58,237,.4)}
+[data-theme="dark"] .cwe-chip{background:rgba(167,139,250,.08);color:#a78bfa;border-color:rgba(167,139,250,.2)}
+[data-theme="dark"] .cwe-chip:hover{background:rgba(167,139,250,.16);border-color:rgba(167,139,250,.4)}
+.cwe-chip-id{font-weight:700;flex-shrink:0}.cwe-chip-sep{opacity:.35}
+.cwe-chip-name{font-family:var(--font-sans);font-weight:400;font-size:11px;color:var(--text-muted)}
+.cwe-chip-srcs{font-family:var(--font-sans);font-weight:400;font-size:10px;opacity:.5;flex-shrink:0}
+.refs-details{margin-top:4px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.refs-summary{display:flex;align-items:center;gap:7px;padding:8px 12px;
+  font-size:12px;font-weight:600;color:var(--text-muted);background:var(--bg);
+  cursor:pointer;user-select:none;list-style:none;transition:background .15s,color .15s}
+.refs-summary::-webkit-details-marker{display:none}
+.refs-summary:hover{background:var(--card-hover);color:var(--text)}
+.refs-arrow{font-size:10px;transition:transform .2s}
+details[open] .refs-arrow{transform:rotate(90deg)}
+.refs-count{font-family:var(--font-mono);font-size:11px;background:var(--border);padding:1px 6px;border-radius:10px}
+.refs-spinner{font-size:12px;animation:spin 1s linear infinite;display:inline-block;margin-left:2px}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.refs-body{padding:0}
+.ref-row{display:flex;align-items:baseline;gap:8px;padding:6px 12px;
+  border-top:1px solid var(--border);font-size:12px}
+.ref-row:hover{background:var(--card-hover)}
+.ref-src-badges{display:flex;gap:3px;flex-shrink:0}
+.ref-src-badges .source-badge{font-size:9px;padding:1px 4px}
+.ref-link{font-family:var(--font-mono);font-size:11px;color:var(--accent);
+  text-decoration:none;word-break:break-all;flex:1}
+.ref-link:hover{text-decoration:underline}
+.cve-error{color:var(--cvss-high);font-family:var(--font-mono);font-size:13px;
+  padding:14px 18px;background:var(--card);border:1px solid var(--border);
+  border-left:3px solid var(--cvss-high);border-radius:var(--radius)}
+.template-label{display:inline-block;margin-bottom:12px;font-family:var(--font-mono);
+  font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  color:var(--text-muted);padding:2px 7px;border:1px dashed var(--border);border-radius:4px}
+.no-cvelist-label{display:inline-block;margin-bottom:12px;font-family:var(--font-mono);
+  font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  color:var(--cvss-high);padding:2px 7px;border:1px solid var(--cvss-high);border-radius:4px;opacity:.8}
+/* Filter panel */
+.filter-btn{position:relative}
+.filter-btn.active{background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.4);color:var(--accent)}
+.filter-panel{display:none;position:fixed;top:92px;right:16px;z-index:200;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:0 8px 32px rgba(0,0,0,.14);padding:14px 16px;min-width:280px;max-width:340px}
+.filter-panel.open{display:block}
+.filter-panel-title{font-family:var(--font-mono);font-size:11px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px}
+.filter-chips{display:flex;flex-wrap:wrap;gap:6px}
+.filter-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:20px;
+  font-family:var(--font-mono);font-size:11px;font-weight:600;cursor:pointer;
+  border:1.5px solid var(--border);background:var(--bg);color:var(--text-muted);
+  transition:all .15s;user-select:none}
+.filter-chip.on{border-color:var(--accent);background:rgba(37,99,235,.08);color:var(--accent)}
+.filter-chip.locked{border-color:var(--cvss-low);background:rgba(34,197,94,.08);
+  color:var(--cvss-low);cursor:default;opacity:.8}
+.filter-chip .fc-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.filter-hint{font-size:10px;font-family:var(--font-sans);color:var(--text-muted);
+  margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
+@media(max-width:700px){
+  .main{padding:14px 12px}.cve-card{padding:16px}
+  .cve-title{font-size:16px}.cwe-chip-name{display:none}.card-chips-right{max-width:60%}
+}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-top">
+    <a class="header-logo" href="index.html" title="CVE Analysis Tool">
+      <div class="logo-icon">CAT</div>
+      <h1>CVE Analysis Tool</h1>
+    </a>
+    <nav class="header-nav">
+      <a href="index.html" class="nav-link active"><span class="nav-icon">🔎</span><span>Search</span></a>
+      <a href="user-guide.html" class="nav-link"><span class="nav-icon">📖</span><span>User Guide</span></a>
+      <a href="technical-doc.html" class="nav-link"><span class="nav-icon">⚙️</span><span>Technical Docs</span></a>
+      <a href="changelog.html" class="nav-link"><span class="nav-icon">📋</span><span>Changelog</span></a>
+      <a href="contact.html" class="nav-link"><span class="nav-icon">✉</span><span>Contact</span></a>
+    </nav>
+    <div class="header-controls">
+      <button class="btn btn-ghost" onclick="toggleTheme()" title="Toggle theme">🌗</button>
+    </div>
+  </div>
+  <div class="header-search-row">
+    <form class="search-bar" onsubmit="event.preventDefault();handleSearch();">
+      <input id="searchInput" type="text" placeholder="CVE-2024-12345  or  paste a list of CVEs…" autocomplete="off" spellcheck="false">
+      <button id="searchBtn" class="btn btn-primary" type="submit" disabled>Search</button>
+    </form>
+    <button id="filterBtn" class="btn btn-ghost filter-btn" onclick="toggleFilterPanel()" title="Filter sources">⊟ Filter</button>
+  </div>
+</header>
+
+<div id="filterPanel" class="filter-panel">
+  <div class="filter-panel-title">Visible sources</div>
+  <div class="filter-chips" id="filterChips"></div>
+  <div class="filter-hint">NVD and CVEList are still displayed. Click to enable/disable a source.</div>
+</div>
+
+<main class="main"><div id="cveResults"></div></main>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-left">
+      <div class="footer-logo-icon">CAT</div>
+      <span class="footer-brand-name">CVE Analysis Tool</span>
+      <span class="footer-sep">·</span>
+      <span class="footer-disclaimer">Live data — not a substitute for vendor advisories.</span>
+    </div>
+    <div class="footer-links">
+      <a href="user-guide.html">User Guide</a>
+      <a href="technical-doc.html">Tech Docs</a>
+      <a href="contact.html">Contact</a>
+      <a href="https://github.com/Alex-BRZK" target="_blank" rel="noopener noreferrer" class="footer-github" title="GitHub — Alex-BRZK">
+        <svg class="github-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577
+            0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755
+            -1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305
+            3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93
+            0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176
+            0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405
+            1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23
+            .645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22
+            0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22
+            0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57
+            C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

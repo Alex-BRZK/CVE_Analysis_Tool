@@ -1,0 +1,352 @@
+/* ================================================================
+   CVE Analysis Tool — shared.css
+   Base styles shared across all pages: index, user-guide,
+   technical-doc, changelog.
+   ================================================================ */
+
+/* ---- Google Fonts are loaded via <link> in each HTML file ---- */
+
+/* ----------------------------------------------------------------
+   CSS VARIABLES
+   ---------------------------------------------------------------- */
+:root {
+  --bg:         #f0f2f5;
+  --card:       #ffffff;
+  --card-hover: #f8faff;
+  --text:       #0f172a;
+  --text-muted: #64748b;
+  --border:     #e2e8f0;
+  --accent:     #2563eb;
+  --accent-hover:#1d4ed8;
+  --radius:     12px;
+  --radius-sm:  6px;
+  --shadow:     0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.04);
+  --font-mono:  'JetBrains Mono', monospace;
+  --font-sans:  'Inter', sans-serif;
+  --cvss-none:     #94a3b8;
+  --cvss-low:      #22c55e;
+  --cvss-medium:   #2563eb;
+  --cvss-high:     #f59e0b;
+  --cvss-critical: #ef4444;
+}
+[data-theme="dark"] {
+  --bg:         #0a0e17;
+  --card:       #111827;
+  --card-hover: #1a2236;
+  --text:       #e2e8f0;
+  --text-muted: #94a3b8;
+  --border:     #1e2d45;
+  --accent:     #3b82f6;
+  --accent-hover:#60a5fa;
+  --shadow:     0 1px 3px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.2);
+  --cvss-low:      #16a34a;
+  --cvss-medium:   #3b82f6;
+  --cvss-high:     #d97706;
+  --cvss-critical: #dc2626;
+}
+
+/* ----------------------------------------------------------------
+   RESET
+   ---------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ----------------------------------------------------------------
+   BASE
+   ---------------------------------------------------------------- */
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+  transition: background .2s, color .2s;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ----------------------------------------------------------------
+   HEADER — two-row layout
+   Row 1 : logo · nav links · controls (theme button)
+   Row 2 : search bar + filter (main page only, injected via .header-search-row)
+   ---------------------------------------------------------------- */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Row 1 ── */
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 20px;
+  height: 48px;
+}
+
+/* Logo */
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--text);
+  flex-shrink: 0;
+  margin-right: 16px;
+}
+.logo-icon {
+  width: 30px;
+  height: 30px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: -1px;
+  flex-shrink: 0;
+}
+.header-logo h1 {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+}
+
+/* Navigation */
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.nav-link:hover { background: var(--bg); color: var(--text); }
+.nav-link.active {
+  background: rgba(37,99,235,.1);
+  color: var(--accent);
+  font-weight: 600;
+}
+[data-theme="dark"] .nav-link.active { background: rgba(59,130,246,.15); }
+.nav-link .nav-icon { font-size: 13px; opacity: .7; }
+
+/* Header right-side controls (row 1) */
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── Row 2 — search bar (main page only) ── */
+.header-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* Search bar */
+.search-bar {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.search-bar input {
+  flex: 1;
+  padding: 8px 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--card);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color .15s;
+  min-width: 0;
+}
+.search-bar input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+}
+.search-bar input::placeholder { color: var(--text-muted); }
+
+/* ----------------------------------------------------------------
+   BUTTONS
+   ---------------------------------------------------------------- */
+.btn {
+  padding: 9px 16px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .15s, opacity .15s, transform .1s;
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.btn-ghost {
+  background: var(--bg);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+}
+.btn-ghost:hover { background: var(--card-hover); }
+
+/* ----------------------------------------------------------------
+   MAIN CONTENT WRAPPER
+   ---------------------------------------------------------------- */
+.main {
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 20px;
+  flex: 1;
+}
+
+/* ----------------------------------------------------------------
+   FOOTER
+   ---------------------------------------------------------------- */
+.footer {
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  padding: 10px 20px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.footer-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.footer-logo-icon {
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: -.5px;
+  flex-shrink: 0;
+}
+.footer-brand-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.footer-sep { color: var(--border); flex-shrink: 0; }
+.footer-disclaimer {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.footer-links { display: flex; gap: 10px; flex-shrink: 0; }
+.footer-links a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 11px;
+}
+.footer-links a:hover { color: var(--accent); text-decoration: underline; }
+.footer-github { display: inline-flex; align-items: center; }
+.github-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  display: block;
+}
+
+/* ----------------------------------------------------------------
+   RESPONSIVE
+   ---------------------------------------------------------------- */
+@media (max-width: 700px) {
+  .header-logo h1 { display: none; }
+  .nav-link .nav-icon { margin: 0; }
+  .nav-link span:not(.nav-icon) { display: none; }
+  .header-top { padding: 0 12px; }
+  .header-search-row { padding: 8px 12px; }
+  .main { padding: 14px 12px; }
+}
+@media (max-width: 480px) {
+  .header-nav { gap: 0; }
+}
+
+/* ----------------------------------------------------------------
+   SHARED UTILITY — used in content pages
+   ---------------------------------------------------------------- */
+.badge-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  vertical-align: middle;
+}
+.badge-cvelist  { background: #475569; }
+.badge-nvd      { background: #0369a1; }
+.badge-redhat   { background: #b91c1c; }
+.badge-suse     { background: #166534; }
+.badge-debian   { background: #fd2e6c; }
+.badge-ubuntu   { background: #e55300; }
+.badge-microsoft{ background: #66a7dd; }
+.badge-amazon   { background: #ff9900; color: #000; }
+.badge-libreoffice{background:#18a303;}
+.badge-postgresql{background:#336791;}
+.badge-oracle   { background: #c74634; }
+.badge-cisa     { background: #003366; }
+.badge-xen      { background: #787879; }

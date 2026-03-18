@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🐱</text></svg>">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact — CVE Analysis Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<script>(function(){document.documentElement.setAttribute("data-theme",localStorage.getItem("theme")||"light")})();</script>
+<style>
+.contact-layout {
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 60px 20px 40px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.contact-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.contact-title {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.contact-lead {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.75;
+  margin-bottom: 36px;
+  max-width: 590px;
+}
+/* Profile card */
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  box-shadow: var(--shadow);
+  margin-bottom: 28px;
+  width: 100%;
+}
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  flex-shrink: 0;
+}
+.profile-info { flex: 1; min-width: 0; }
+.profile-name {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.profile-role {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 0;
+}
+/* Social links */
+.social-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.social-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color .15s, background .15s, transform .1s, box-shadow .15s;
+  box-shadow: var(--shadow);
+}
+.social-link:hover {
+  border-color: var(--accent);
+  background: var(--card-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0,0,0,.1);
+}
+.social-link:active { transform: translateY(0); }
+.social-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 20px;
+}
+.social-icon-github { background: #1b1f23; color: #fff; }
+[data-theme="dark"] .social-icon-github { background: #f0f6fc; color: #1b1f23; }
+.social-icon-linkedin { background: #0a66c2; color: #fff; }
+.social-body { flex: 1; min-width: 0; }
+.social-name {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 2px;
+  color: var(--text);
+}
+.social-handle {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+}
+.social-arrow {
+  font-size: 16px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform .15s, color .15s;
+}
+.social-link:hover .social-arrow {
+  transform: translateX(3px);
+  color: var(--accent);
+}
+/* License section */
+.license-block {
+  margin-top: 36px;
+  padding: 16px 20px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  width: 100%;
+}
+.license-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.license-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+.license-text a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+@media (max-width: 500px) {
+  .contact-layout { padding: 36px 14px 28px; }
+  .profile-card { flex-direction: column; align-items: flex-start; padding: 18px; }
+  .contact-title { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-top">
+    <a class="header-logo" href="index.html" title="CVE Analysis Tool">
+      <div class="logo-icon">CAT</div>
+      <h1>CVE Analysis Tool</h1>
+    </a>
+    <nav class="header-nav">
+      <a href="index.html" class="nav-link"><span class="nav-icon">🔎</span><span>Search</span></a>
+      <a href="user-guide.html" class="nav-link"><span class="nav-icon">📖</span><span>User Guide</span></a>
+      <a href="technical-doc.html" class="nav-link"><span class="nav-icon">⚙️</span><span>Technical Docs</span></a>
+      <a href="changelog.html"     class="nav-link"><span class="nav-icon">📋</span><span>Changelog</span></a>
+      <a href="contact.html"       class="nav-link active"><span class="nav-icon">✉</span><span>Contact</span></a>
+    </nav>
+    <div class="header-controls">
+      <button class="btn btn-ghost" onclick="toggleTheme()" title="Toggle theme">🌗</button>
+    </div>
+  </div>
+</header>
+
+<div class="contact-layout">
+  <div class="contact-eyebrow">Get in touch</div>
+  <h1 class="contact-title">Contact</h1>
+  <p class="contact-lead">
+    CVE Analysis Tool is an open-source project. Feedback, bug reports, and contributions
+    are welcome via GitHub. Feel free to contact me.
+  </p>
+
+  <!-- Profile -->
+  <div class="profile-card">
+    <div class="profile-avatar">🧑‍💻</div>
+    <div class="profile-info">
+      <div class="profile-name">Alexis Broniarczyk</div>
+      <div class="profile-role">Security enthusiast · Developer of CVE Analysis Tool</div>
+    </div>
+  </div>
+
+  <!-- Social links -->
+  <div class="social-links">
+
+    <a class="social-link" href="https://github.com/alex-brzk" target="_blank" rel="noopener noreferrer">
+      <div class="social-icon social-icon-github">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+        </svg>
+      </div>
+      <div class="social-body">
+        <div class="social-name">GitHub</div>
+        <div class="social-handle">github.com/alex-brzk</div>
+      </div>
+      <span class="social-arrow">→</span>
+    </a>
+
+    <a class="social-link" href="https://www.linkedin.com/in/alexis-broniarczyk" target="_blank" rel="noopener noreferrer">
+      <div class="social-icon social-icon-linkedin">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+        </svg>
+      </div>
+      <div class="social-body">
+        <div class="social-name">LinkedIn</div>
+        <div class="social-handle">linkedin.com/in/alexis-broniarczyk</div>
+      </div>
+      <span class="social-arrow">→</span>
+    </a>
+
+  </div>
+
+  <!-- License -->
+  <div class="license-block">
+    <div class="license-title">Open-source license</div>
+    <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="GPLv3 License">
+    <p class="license-text">
+      CVE Analysis Tool is free software released under the
+      <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GNU General Public License v3.0.</a>
+    </p>
+    <p class="license-text">Source code is available on GitHub.
+    </p>
+    <p class="license-text">
+          This program is distributed in the hope that it will be useful,
+      but WITHOUT ANY WARRANTY; without even the implied warranty of
+      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+      GNU General Public License for more details.
+    </p>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-left">
+      <div class="footer-logo-icon">CAT</div>
+      <span class="footer-brand-name">CVE Analysis Tool</span>
+      <span class="footer-sep">·</span>
+      <span class="footer-disclaimer">Live data — not a substitute for vendor advisories.</span>
+    </div>
+    <div class="footer-links">
+      <a href="user-guide.html">User Guide</a>
+      <a href="technical-doc.html">Tech Docs</a>
+      <a href="contact.html">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleTheme() {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("theme", next);
+}
+</script>
+</body>
+</html>

@@ -57,7 +57,7 @@ Everything runs **100% client-side** — no backend, no installation, no data se
 
 All contributions, ideas, and suggestions are welcome!
 
-Whether you want to add a new data source, fix a bug, improve the UI, or suggest a feature — feel free to get involved. The best way to start is to **[open a new ticket via GitHub Issues](../../issues/new)**. Please describe your idea or the problem you encountered as clearly as possible so it can be discussed and prioritised.
+Whether you want to add a new data source, fix a bug, improve the UI, or suggest a feature — feel free to get involved. The best way to start is to **[open a new ticket via GitHub Issues](https://github.com/Alex-BRZK/CVE_Analysis_Tool/issues/new/choose)**. Please describe your idea or the problem you encountered as clearly as possible so it can be discussed and prioritised.
 
 ---
 

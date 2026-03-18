@@ -12,7 +12,7 @@
 
 **CVE Analysis Tool** (CAT) is an open-source, browser-based tool designed to give security analysts and researchers a **centralized, multi-source view** of any CVE identifier. Simply enter one or several CVE IDs, and the tool simultaneously queries all configured data sources, deduplicates the results, and displays a unified card with descriptions, CVSS scores, CWE identifiers, and source availability statuses.
 
-Everything runs **100% client-side** — no backend, no installation, no data sent to a third-party server (except through the CORS proxy). All information comes from external sources, and each of them is systematically referenced to ensure **complete transparency** on the origin of the data.
+Everything runs **100% client-side** — no backend, no installation, no data sent to a third-party server (except through the CORS proxy). All information comes from external sources, and each of them is systematically referenced to ensure **complete transparency** on the origin of the data.  **[Click here](https://alex-brzk.github.io/CVE_Analysis_Tool/)**
 
 ---
 

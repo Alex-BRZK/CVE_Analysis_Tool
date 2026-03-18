@@ -1083,8 +1083,6 @@ async function renderCve(cve) {
     refreshCwe();
 
     /* ---- Phase 2: secondary sources ----
-       Les requêtes démarrent ICI, après que la carte Phase 1 est affichée.
-       Cela évite de lancer 14×N requêtes simultanées lors d'un batch de N CVEs.
     ------------------------------------------------------------------ */
     fp.rhOld  = fetchRedHatData(cve);
     fp.rhCsaf = fetchRedHatCsaf(cve);

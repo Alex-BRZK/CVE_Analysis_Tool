@@ -68,7 +68,7 @@ function _acquireSlot() {
   return new Promise(resolve => _reqQueue.push(resolve));
 }
 function _releaseSlot() {
-  if (_reqQueue.length > 0) { _reqQueue.shift()(); }   // slot passe au suivant
+  if (_reqQueue.length > 0) { _reqQueue.shift()(); }   // next slot
   else                      { _activeReqs--; }
 }
 
@@ -145,6 +145,167 @@ function normalizeForComparison(s) {
 function sameDescription(a, b) { return !!a && !!b && normalizeForComparison(a) === normalizeForComparison(b); }
 function cvssColorClass(s) { if (s == null || s === 0) return "bg-none"; if (s < 4) return "bg-low"; if (s < 7) return "bg-medium"; if (s < 9) return "bg-high"; return "bg-critical"; }
 const wait = ms => new Promise(r => setTimeout(r, ms));
+
+/* =================================================================
+   CVE PERSISTENCE + COMPLEMENTARY CACHE
+   ─────────────────────────────────────────────────────────────────
+   Master list : localStorage  "cat_cves"       — max 50 IDs
+                                                  persists across sessions
+   Data cache  : localStorage  "cat_cve_{ID}"  — 25 most recent CVEs
+                                                  TTL 7 days
+               : sessionStorage "cat_cve_{ID}" — 25 oldest CVEs
+                                                  TTL 4h, cleared on tab close
+   ================================================================= */
+const MAX_CVES     = 50;
+const MAX_LS_DATA  = 25;                         // newest 25 → localStorage
+const LS_TTL_MS    = 7 * 24 * 60 * 60 * 1000;  // 7 days  (localStorage data)
+const SS_TTL_MS    = 4 * 60 * 60 * 1000;        // 4 hours (sessionStorage data)
+
+/* ── Master list ── */
+function storageGetCves() { try { return JSON.parse(localStorage.getItem("cat_cves") || "[]"); } catch { return []; } }
+function storageSetCves(l) { localStorage.setItem("cat_cves", JSON.stringify(l)); }
+
+function storageAddCve(cve) {
+  const l = storageGetCves();
+  if (l.includes(cve)) return;
+  l.push(cve);                          // newest at end
+  if (l.length > MAX_CVES) {
+    const evicted = l.shift();          // drop oldest ID
+    _dataDel(evicted);                  // remove its data from both stores
+  }
+  storageSetCves(l);
+}
+
+function storageRemoveCve(cve) {
+  storageSetCves(storageGetCves().filter(c => c !== cve));
+  _dataDel(cve);
+}
+
+function storageClearCves() {
+  localStorage.removeItem("cat_cves");
+  _dataDelAll();
+}
+
+/* ── Target-store logic ──
+   list[0] = oldest … list[length-1] = newest
+   newest MAX_LS_DATA entries → localStorage data
+   rest                        → sessionStorage data               */
+function _targetStore(cve) {
+  const l = storageGetCves();
+  const idx = l.indexOf(cve);
+  if (idx === -1) return sessionStorage;
+  return idx >= l.length - MAX_LS_DATA ? localStorage : sessionStorage;
+}
+
+/* ── Data helpers ── */
+function _dataDel(cve) {
+  const k = `cat_cve_${cve}`;
+  localStorage.removeItem(k);
+  sessionStorage.removeItem(k);
+}
+
+function _dataDelAll() {
+  ["cat_cve_"].forEach(prefix => {
+    [localStorage, sessionStorage].forEach(store => {
+      Object.keys(store).filter(k => k.startsWith(prefix)).forEach(k => store.removeItem(k));
+    });
+  });
+}
+
+/* ── Save (called after Phase-2 allSettled) ── */
+function sessionSave(cve, ctx, cvssBase) {
+  const { statuses, urls } = _getDotStatuses(cve);
+  const target = _targetStore(cve);
+  const other  = target === localStorage ? sessionStorage : localStorage;
+  const ttl    = target === localStorage ? LS_TTL_MS : SS_TTL_MS;
+  const payload = {
+    ts: Date.now(), ttl,
+    ctx: {
+      cveListData:     ctx.cveListData     ?? null,
+      nvdData:         ctx.nvdData         ?? null,
+      nvdNetworkError: ctx.nvdResult?.networkError || false,
+      rhOld:           ctx.rhOld           ?? null,
+      rhCsaf:          ctx.rhCsaf          ?? null,
+      suseCsaf:        ctx.suseCsaf        ?? null,
+      debianData:      ctx.debianData      ?? null,
+      ubuntuData:      ctx.ubuntuData
+        ? { ...ctx.ubuntuData, rawData: ctx.ubuntuData.rawData
+            ? { references: ctx.ubuntuData.rawData.references || [] }
+            : null }
+        : null,
+      msrcData:        ctx.msrcData        ?? null,
+      amazonData:      ctx.amazonData      ?? null,
+      libreofficeData: ctx.libreofficeData ?? null,
+      postgresData:    ctx.postgresData    ?? null,
+      oracleData:      ctx.oracleData      ?? null,
+      xenData:         ctx.xenData         ?? null,
+      cisaData:        ctx.cisaData        ?? null,
+    },
+    cvssBase,
+    dotStatuses: statuses,
+    dotUrls:     urls,
+  };
+  const key        = `cat_cve_${cve}`;
+  const serialised = JSON.stringify(payload);
+  other.removeItem(key);                 // clean up wrong store if CVE moved tiers
+  _writeWithLRU(target, key, serialised);
+}
+
+/* LRU-aware write: on QuotaExceededError, evict oldest cat_cve_* entry
+   from the same store and retry, up to 60 times.                      */
+function _writeWithLRU(store, key, serialised) {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    try {
+      store.setItem(key, serialised);
+      return;
+    } catch (e) {
+      if (e.name !== "QuotaExceededError" && e.name !== "NS_ERROR_DOM_QUOTA_REACHED") return;
+      let oldestKey = null, oldestTs = Infinity;
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i);
+        if (!k || !k.startsWith("cat_cve_") || k === key) continue;
+        try {
+          const ts = JSON.parse(store.getItem(k))?.ts ?? 0;
+          if (ts < oldestTs) { oldestTs = ts; oldestKey = k; }
+        } catch { oldestKey = k; oldestTs = 0; }
+      }
+      if (!oldestKey) return;
+      store.removeItem(oldestKey);
+    }
+  }
+}
+
+/* ── Load (checks localStorage first, then sessionStorage) ── */
+function sessionLoad(cve) {
+  const key = `cat_cve_${cve}`;
+  for (const store of [localStorage, sessionStorage]) {
+    try {
+      const raw = store.getItem(key);
+      if (!raw) continue;
+      const p = JSON.parse(raw);
+      const ttl = p.ttl ?? SS_TTL_MS;
+      if (Date.now() - p.ts > ttl) { store.removeItem(key); continue; }
+      return p;
+    } catch { continue; }
+  }
+  return null;
+}
+
+/* ── Remove / clear ── */
+function sessionRemove(cve) { _dataDel(cve); }
+function sessionClearAll()  { _dataDelAll(); }
+
+function _getDotStatuses(cve) {
+  const statuses = {}, urls = {};
+  SOURCE_CONFIG.forEach(src => {
+    const chip = document.getElementById(`dot-${src.name}-${cve}`);
+    const dot  = chip?.querySelector(".dot");
+    const cls  = dot ? Array.from(dot.classList).find(c => c.startsWith("dot-") && c !== "dot") : null;
+    statuses[src.name] = cls ? cls.replace("dot-", "") : "wait";
+    urls[src.name]     = chip?.href || "";
+  });
+  return { statuses, urls };
+}
 
 /* =================================================================
    CVSS UTILITIES
@@ -885,8 +1046,9 @@ function buildDescGroups(items) {
    RENDER CVE
    ================================================================= */
 const displayedCVEs = new Set();
+const cveData = new Map();
 
-async function renderCve(cve) {
+async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
   const container = document.getElementById("cveResults");
   document.getElementById("templateCard")?.remove();
   const skeleton = createSkeletonCard(cve);
@@ -975,6 +1137,9 @@ async function renderCve(cve) {
       cvssEl.innerHTML = "";
       if (cvssAll.length) cvssAll.forEach(e => cvssEl.appendChild(createCvssBadge(e)));
       else { const none = document.createElement("span"); none.style.cssText = "font-size:13px;color:var(--text-muted);font-style:italic;"; none.textContent = "No CVSS score available"; cvssEl.appendChild(none); }
+      const cardEl = document.querySelector(`.cve-card[data-cve="${cve}"]`);
+      if (cardEl) cardEl.dataset.cvssMax = cvssAll.length ? String(cvssAll[0].score) : "-1";
+      applySortIfActive();
     }
 
     // ── Refs ──
@@ -994,10 +1159,18 @@ async function renderCve(cve) {
   }
 
   try {
-    const [cveListData, nvdResult] = await Promise.all([fp.cveList, fp.nvd]);
-    ctx.cveListData = cveListData;
-    ctx.nvdResult   = nvdResult;
-    ctx.nvdData     = nvdResult?.data || null;
+    let cveListData, nvdResult;
+    if (cachedData) {
+      // Restore from session cache — no HTTP call
+      Object.assign(ctx, cachedData.ctx);
+      cveListData = ctx.cveListData;
+      nvdResult   = { data: ctx.nvdData, networkError: ctx.nvdNetworkError || false };
+    } else {
+      [cveListData, nvdResult] = await Promise.all([fp.cveList, fp.nvd]);
+      ctx.cveListData = cveListData;
+      ctx.nvdResult   = nvdResult;
+      ctx.nvdData     = nvdResult?.data || null;
+    }
 
     const hasCveList = !!cveListData;
     const cna        = cveListData?.containers?.cna || null;
@@ -1007,26 +1180,34 @@ async function renderCve(cve) {
     const cveListDesc = normalizeText(cna?.descriptions?.[0]?.value);
     const nvdDesc     = normalizeText(ctx.nvdData?.descriptions?.[0]?.value);
 
-    if (cna) {
-      (cna.metrics || []).forEach(m => {
-        if (m.cvssV2)   pushCvss(cvssBase, "v2.0", m.cvssV2,   "CVEList");
-        if (m.cvssV3)   pushCvss(cvssBase, "v3.0", m.cvssV3,   "CVEList");
-        if (m.cvssV3_1) pushCvss(cvssBase, "v3.1", m.cvssV3_1, "CVEList");
-        if (m.cvssV4)   pushCvss(cvssBase, "v4.0", m.cvssV4,   "CVEList");
-      });
+    if (cachedData) {
+      cvssBase.push(...(cachedData.cvssBase || []));
+    } else {
+      if (cna) {
+        (cna.metrics || []).forEach(m => {
+          if (m.cvssV2)   pushCvss(cvssBase, "v2.0", m.cvssV2,   "CVEList");
+          if (m.cvssV3)   pushCvss(cvssBase, "v3.0", m.cvssV3,   "CVEList");
+          if (m.cvssV3_1) pushCvss(cvssBase, "v3.1", m.cvssV3_1, "CVEList");
+          if (m.cvssV4)   pushCvss(cvssBase, "v4.0", m.cvssV4,   "CVEList");
+        });
+      }
+      if (ctx.nvdData?.metrics) {
+        const m = ctx.nvdData.metrics;
+        (m.cvssMetricV40 || []).forEach(s => pushCvss(cvssBase, "v4.0", s.cvssData, "NVD"));
+        (m.cvssMetricV31 || []).forEach(s => pushCvss(cvssBase, "v3.1", s.cvssData, "NVD"));
+        (m.cvssMetricV30 || []).forEach(s => pushCvss(cvssBase, "v3.0", s.cvssData, "NVD"));
+        (m.cvssMetricV2  || []).forEach(s => pushCvss(cvssBase, "v2.0", s.cvssData, "NVD"));
+      }
+      sortCvss(cvssBase);
     }
-    if (ctx.nvdData?.metrics) {
-      const m = ctx.nvdData.metrics;
-      (m.cvssMetricV40 || []).forEach(s => pushCvss(cvssBase, "v4.0", s.cvssData, "NVD"));
-      (m.cvssMetricV31 || []).forEach(s => pushCvss(cvssBase, "v3.1", s.cvssData, "NVD"));
-      (m.cvssMetricV30 || []).forEach(s => pushCvss(cvssBase, "v3.0", s.cvssData, "NVD"));
-      (m.cvssMetricV2  || []).forEach(s => pushCvss(cvssBase, "v2.0", s.cvssData, "NVD"));
-    }
-    sortCvss(cvssBase);
 
     // Build card DOM
     const card = document.createElement("div");
     card.className = hasCveList ? "cve-card" : "cve-card no-cvelist";
+    card.dataset.cve     = cve;
+    card.dataset.id      = cve;
+    card.dataset.date    = published || "";
+    card.dataset.cvssMax = "-1";
     if (!hasCveList) { const lbl = document.createElement("span"); lbl.className = "no-cvelist-label"; lbl.textContent = "Not in CVEList"; card.appendChild(lbl); }
 
     const cardTop = document.createElement("div"); cardTop.className = "card-top";
@@ -1040,13 +1221,23 @@ async function renderCve(cve) {
     const titleEl = document.createElement("div"); titleEl.className = "cve-title"; titleEl.textContent = cve; metaLeft.appendChild(titleEl);
     cardTop.appendChild(metaLeft);
 
+    const topRight = document.createElement("div"); topRight.className = "card-top-right";
+    const actionsEl = document.createElement("div"); actionsEl.className = "card-actions";
+    const refreshBtn = document.createElement("button"); refreshBtn.className = "card-action-btn card-refresh-btn"; refreshBtn.type = "button"; refreshBtn.title = "Refresh failed sources";
+    refreshBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`;
+    refreshBtn.addEventListener("click", () => refreshCve(cve));
+    const deleteBtn = document.createElement("button"); deleteBtn.className = "card-action-btn card-delete-btn"; deleteBtn.type = "button"; deleteBtn.title = "Remove this CVE";
+    deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>`;
+    deleteBtn.addEventListener("click", () => deleteCve(cve));
+    actionsEl.appendChild(refreshBtn); actionsEl.appendChild(deleteBtn);
     const chipsRight = document.createElement("div"); chipsRight.className = "card-chips-right";
     for (const src of SOURCE_CONFIG) {
       const chip = document.createElement("a"); chip.className = "source-chip"; chip.href = src.url(cve); chip.target = "_blank"; chip.id = `dot-${src.name}-${cve}`; chip.dataset.source = src.name;
       const dot = document.createElement("span"); dot.className = "dot dot-wait";
       chip.appendChild(dot); chip.appendChild(document.createTextNode(src.name)); chipsRight.appendChild(chip);
     }
-    cardTop.appendChild(chipsRight); card.appendChild(cardTop);
+    topRight.appendChild(actionsEl); topRight.appendChild(chipsRight);
+    cardTop.appendChild(topRight); card.appendChild(cardTop);
 
     // Initial description from phase-1 (CVEList + NVD)
     const mainDescInit = cveListDesc || nvdDesc || "Loading…";
@@ -1077,10 +1268,32 @@ async function renderCve(cve) {
 
     container.replaceChild(card, skeleton);
 
+    // Set initial cvssMax from Phase 1 scores
+    if (cvssBase.length) card.dataset.cvssMax = String(cvssBase[0].score);
+
     // NVD dot immediately
     setDot("NVD", ctx.nvdResult?.networkError ? "networkerror" : ctx.nvdResult?.data ? "ok" : "fail");
 
     refreshCwe();
+
+    cveData.set(cve, { ctx, cvssBase, excludedUrls, setDot, refreshCard, refreshCwe, refsSpinnerEl });
+    if (!skipStorage) storageAddCve(cve);
+    updateClearSection();
+
+    if (cachedData) {
+      // ── Restore full card from session cache, no Phase 2 fetches ──
+      refreshCard();
+      refreshCwe();
+      const maxScore = cvssBase[0]?.score;
+      if (maxScore != null) card.dataset.cvssMax = String(maxScore);
+      SOURCE_CONFIG.forEach(s => {
+        const status = cachedData.dotStatuses?.[s.name] || "fail";
+        const url    = cachedData.dotUrls?.[s.name];
+        setDot(s.name, status, url || undefined);
+      });
+      refsSpinnerEl.style.display = "none";
+      return;
+    }
 
     /* ---- Phase 2: secondary sources ----
     ------------------------------------------------------------------ */
@@ -1212,7 +1425,7 @@ async function renderCve(cve) {
     }).catch(() => { ctx.cisaData = null; setDot("CISA", "networkerror"); });
 
     Promise.allSettled([fp.rhOld, fp.rhCsaf, fp.suse, fp.debian, fp.ubuntu, fp.msrc, fp.amazon, fp.lbo, fp.pg, fp.oracle, fp.xen, fp.cisa])
-      .then(() => { refsSpinnerEl.style.display = "none"; });
+      .then(() => { refsSpinnerEl.style.display = "none"; sessionSave(cve, ctx, cvssBase); });
 
   } catch (err) {
     const errDiv = document.createElement("div"); errDiv.className = "cve-error"; errDiv.textContent = `⚠ ${err.message}`;
@@ -1265,16 +1478,16 @@ function applyFilter() {
   });
 }
 
-function toggleFilterPanel() {
-  const panel = document.getElementById("filterPanel");
-  const btn   = document.getElementById("filterBtn");
+function toggleOptionsPanel() {
+  const panel = document.getElementById("optionsPanel");
+  const btn   = document.getElementById("optionsBtn");
   panel.classList.toggle("open");
   btn.classList.toggle("active", panel.classList.contains("open"));
 }
 document.addEventListener("click", e => {
-  const panel = document.getElementById("filterPanel");
-  const btn   = document.getElementById("filterBtn");
-  if (panel && !panel.contains(e.target) && !btn.contains(e.target)) {
+  const panel = document.getElementById("optionsPanel");
+  const btn   = document.getElementById("optionsBtn");
+  if (panel && !panel.contains(e.target) && btn && !btn.contains(e.target)) {
     panel.classList.remove("open"); btn.classList.remove("active");
   }
 });
@@ -1322,4 +1535,200 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("cveResults").appendChild(createTemplateCard());
   input.addEventListener("input", () => { btn.disabled = !extractCveIds(input.value.toUpperCase()).length; });
   initFilterChips();
+
+  const saved = storageGetCves();
+  if (saved.length) {
+    (async () => {
+      for (let i = 0; i < saved.length; i++) {
+        const cve = saved[i];
+        if (displayedCVEs.has(cve)) continue;
+        displayedCVEs.add(cve);
+        const cached = sessionLoad(cve);
+        await renderCve(cve, { skipStorage: true, cachedData: cached });
+        if (!cached && i < saved.length - 1) await wait(DELAY_MS);
+      }
+      updateClearSection();
+    })();
+  }
 });
+
+
+/* =================================================================
+   CARD ACTIONS — delete / clear / refresh
+   ================================================================= */
+function updateClearSection() {
+  const section = document.getElementById("clearSection"); if (!section) return;
+  section.style.display = document.querySelectorAll(".cve-card:not(.template)").length ? "" : "none";
+}
+
+function deleteCve(cve) {
+  document.querySelector(`.cve-card[data-cve="${cve}"]`)?.remove();
+  displayedCVEs.delete(cve); cveData.delete(cve); storageRemoveCve(cve); sessionRemove(cve);
+  const container = document.getElementById("cveResults");
+  if (!document.getElementById("templateCard") && !document.querySelectorAll(".cve-card:not(.template)").length)
+    container.appendChild(createTemplateCard());
+  updateClearSection();
+}
+
+function clearAllCves() {
+  document.querySelectorAll(".cve-card:not(.template)").forEach(c => c.remove());
+  displayedCVEs.clear(); cveData.clear(); storageClearCves(); sessionClearAll();
+  const container = document.getElementById("cveResults");
+  if (!document.getElementById("templateCard")) container.appendChild(createTemplateCard());
+  updateClearSection();
+}
+
+async function refreshCve(cve) {
+  const stored = cveData.get(cve); if (!stored) return;
+  const toRefresh = SOURCE_CONFIG.map(s => s.name).filter(name => {
+    const dot = document.querySelector(`#dot-${name}-${cve} .dot`);
+    return dot && (dot.classList.contains("dot-fail") || dot.classList.contains("dot-networkerror"));
+  });
+  if (!toRefresh.length) return;
+  const card = document.querySelector(`.cve-card[data-cve="${cve}"]`);
+  const btn = card?.querySelector(".card-refresh-btn");
+  if (btn) btn.classList.add("spinning");
+  stored.refsSpinnerEl.style.display = "";
+  await Promise.allSettled(toRefresh.map(name => runSourceFetch(name, cve, stored)));
+  if (btn) btn.classList.remove("spinning");
+  stored.refsSpinnerEl.style.display = "none";
+}
+
+async function runSourceFetch(srcName, cve, stored) {
+  const { ctx, cvssBase, setDot, refreshCard, refreshCwe, excludedUrls } = stored;
+  try {
+    switch (srcName) {
+      case "NVD": {
+        setDot("NVD","wait");
+        const r = await fetchNvdData(cve); ctx.nvdData = r?.data||null; ctx.nvdResult = r;
+        if (ctx.nvdData?.metrics) { const m=ctx.nvdData.metrics;
+          (m.cvssMetricV40||[]).forEach(s=>pushCvss(cvssBase,"v4.0",s.cvssData,"NVD"));
+          (m.cvssMetricV31||[]).forEach(s=>pushCvss(cvssBase,"v3.1",s.cvssData,"NVD"));
+          (m.cvssMetricV30||[]).forEach(s=>pushCvss(cvssBase,"v3.0",s.cvssData,"NVD"));
+          (m.cvssMetricV2 ||[]).forEach(s=>pushCvss(cvssBase,"v2.0",s.cvssData,"NVD")); sortCvss(cvssBase); }
+        refreshCard(); setDot("NVD", r?.networkError?"networkerror":r?.data?"ok":"fail"); break;
+      }
+      case "RedHat": {
+        setDot("RedHat","wait");
+        const [rhOld,rhCsaf] = await Promise.all([fetchRedHatData(cve),fetchRedHatCsaf(cve)]);
+        ctx.rhOld=rhOld??null; ctx.rhCsaf=rhCsaf??null; refreshCard();
+        const vuln = ctx.rhCsaf?.document?.vulnerabilities?.[0]||ctx.rhCsaf?.vulnerabilities?.[0];
+        if (vuln?.product_status) { const ps=vuln.product_status;
+          const aff=(ps.known_affected||[]).length+(ps.fixed||[]).length+(ps.under_investigation||[]).length;
+          setDot("RedHat", aff>0?"ok":(ps.known_not_affected||[]).length>0?"notaffected":"ok");
+        } else if (ctx.rhOld) {
+          const hasScore=!!(ctx.rhOld.cvss?.cvss_base_score||ctx.rhOld.cvss3?.cvss3_base_score);
+          if (hasScore||!!ctx.rhOld.threat_severity) setDot("RedHat","ok");
+          else if (/does not affect/i.test(ctx.rhOld.statement||"")) setDot("RedHat","notaffected");
+          else if (ctx.rhOld.bugzilla) setDot("RedHat","ok"); else setDot("RedHat","notaffected");
+        } else {
+          const r=await proxyFetchWithStatus(`https://access.redhat.com/security/cve/${encodeURIComponent(cve)}`,"text");
+          if (r.httpStatus===0) setDot("RedHat","networkerror");
+          else if (!r.data||r.httpStatus===404) setDot("RedHat","fail");
+          else if (/does not affect red hat/i.test(r.data)) setDot("RedHat","notaffected");
+          else if (/threat_severity|affected_release|cve-severity|bugzilla\.redhat\.com/i.test(r.data)) setDot("RedHat","ok");
+          else setDot("RedHat","fail");
+        }
+        refreshCwe(); break;
+      }
+      case "SUSE": {
+        setDot("SUSE","wait"); const r=await fetchSuseCsaf(cve); ctx.suseCsaf=r?.data??null; refreshCard();
+        if (r?.networkError) setDot("SUSE","networkerror");
+        else if (ctx.suseCsaf) setDot("SUSE","ok");
+        else { const s=await checkUrl(SOURCE_CONFIG.find(sc=>sc.name==="SUSE").url(cve)); setDot("SUSE",s); }
+        refreshCwe(); break;
+      }
+      case "Debian": {
+        setDot("Debian","wait"); const d=await fetchDebianDescription(cve); ctx.debianData=d??null; refreshCard();
+        if (ctx.debianData?.networkError) setDot("Debian","networkerror");
+        else if (!ctx.debianData) setDot("Debian","fail");
+        else if (ctx.debianData.notAffected===true) setDot("Debian","notaffected");
+        else if (ctx.debianData.desc||ctx.debianData.notAffected===false) setDot("Debian","ok");
+        else setDot("Debian","fail"); break;
+      }
+      case "Ubuntu": {
+        setDot("Ubuntu","wait"); const d=await fetchUbuntuData(cve); ctx.ubuntuData=d??null; refreshCard();
+        if (ctx.ubuntuData?.networkError) setDot("Ubuntu","networkerror");
+        else if (ctx.ubuntuData?.notAffected===false) setDot("Ubuntu","ok");
+        else if (ctx.ubuntuData?.notAffected===true) setDot("Ubuntu","notaffected");
+        else setDot("Ubuntu","fail"); break;
+      }
+      case "Microsoft": {
+        setDot("Microsoft","wait"); const d=await fetchMsrcData(cve); ctx.msrcData=d??null; refreshCard();
+        setDot("Microsoft",ctx.msrcData?.dotStatus||"fail",ctx.msrcData?.dotUrl); refreshCwe(); break;
+      }
+      case "Amazon": {
+        setDot("Amazon","wait"); const d=await fetchAmazonData(cve); ctx.amazonData=d??null; refreshCard();
+        if (ctx.amazonData?.networkError) setDot("Amazon","networkerror");
+        else if (!ctx.amazonData?.pageFound) setDot("Amazon","fail");
+        else if (ctx.amazonData?.desc||ctx.amazonData?.cvssList?.length) setDot("Amazon","ok");
+        else setDot("Amazon","notaffected"); break;
+      }
+      case "LibreOffice": {
+        setDot("LibreOffice","wait"); const d=await fetchLibreOfficeData(cve); ctx.libreofficeData=d??null; refreshCard();
+        if (ctx.libreofficeData?.networkError) setDot("LibreOffice","networkerror");
+        else if (!ctx.libreofficeData?.pageFound) setDot("LibreOffice","fail");
+        else if (ctx.libreofficeData?.desc) setDot("LibreOffice","ok");
+        else setDot("LibreOffice","notaffected"); break;
+      }
+      case "PostgreSQL": {
+        setDot("PostgreSQL","wait"); const d=await fetchPostgreSQLData(cve); ctx.postgresData=d??null; refreshCard();
+        if (ctx.postgresData?.networkError) setDot("PostgreSQL","networkerror");
+        else if (!ctx.postgresData?.pageFound) setDot("PostgreSQL","fail");
+        else if (ctx.postgresData?.desc||ctx.postgresData?.cvssList?.length) setDot("PostgreSQL","ok");
+        else setDot("PostgreSQL","notaffected"); break;
+      }
+      case "Oracle": {
+        setDot("Oracle","wait"); const d=await fetchOracleData(cve); ctx.oracleData=d??null; refreshCard();
+        if (ctx.oracleData?.networkError) setDot("Oracle","networkerror");
+        else if (!ctx.oracleData?.pageFound) setDot("Oracle","fail");
+        else if (ctx.oracleData?.desc||ctx.oracleData?.cvssList?.length) setDot("Oracle","ok");
+        else setDot("Oracle","notaffected"); break;
+      }
+      case "Xen": {
+        setDot("Xen","wait"); const d=await fetchXenData(cve); ctx.xenData=d??null;
+        if (ctx.xenData?.advisoryUrl) excludedUrls.add(ctx.xenData.advisoryUrl);
+        refreshCard();
+        if (ctx.xenData?.networkError) setDot("Xen","networkerror");
+        else if (ctx.xenData?.cveFound) setDot("Xen","ok",ctx.xenData.advisoryUrl);
+        else setDot("Xen","fail"); break;
+      }
+      case "CISA": {
+        setDot("CISA","wait"); const d=await fetchCisaData(cve); ctx.cisaData=d??null; refreshCard(); refreshCwe();
+        if (ctx.cisaData?.networkError) setDot("CISA","networkerror");
+        else if (ctx.cisaData?.pageFound) setDot("CISA","ok");
+        else setDot("CISA","fail"); break;
+      }
+    }
+  } catch { setDot(srcName,"networkerror"); }
+}
+
+/* =================================================================
+   SORT
+   ================================================================= */
+let _currentSort = "none";
+
+function setSort(val) { _currentSort = val; applySort(); }
+
+function applySortIfActive() { if (_currentSort !== "none") applySort(); }
+
+function applySort() {
+  const container = document.getElementById("cveResults");
+  const cards = Array.from(container.querySelectorAll(".cve-card:not(.template)"));
+  if (!cards.length) return;
+  cards.sort((a, b) => {
+    switch (_currentSort) {
+      case "cvss-desc": return parseFloat(b.dataset.cvssMax??"-1") - parseFloat(a.dataset.cvssMax??"-1");
+      case "cvss-asc": {
+        const sa=parseFloat(a.dataset.cvssMax??"-1"), sb=parseFloat(b.dataset.cvssMax??"-1");
+        if (sa===-1&&sb===-1) return 0; if (sa===-1) return 1; if (sb===-1) return -1; return sa-sb;
+      }
+      case "date-desc": return (b.dataset.date||"").localeCompare(a.dataset.date||"");
+      case "date-asc":  return (a.dataset.date||"").localeCompare(b.dataset.date||"");
+      case "id-asc":  return (a.dataset.id||"").localeCompare(b.dataset.id||"");
+      case "id-desc": return (b.dataset.id||"").localeCompare(a.dataset.id||"");
+      default: return 0;
+    }
+  });
+  cards.forEach(c => container.appendChild(c));
+}

@@ -2,7 +2,7 @@
 
 > A client-side, zero-dependency web application that aggregates CVE vulnerability data in real time from multiple official sources — no installation required / no account required.
 
-![Version](https://img.shields.io/badge/version-v1.0-blue)
+![Version](https://img.shields.io/badge/version-v1.1-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 
@@ -29,6 +29,7 @@ Everything runs **100% client-side** — no backend, no installation, no data se
 - **Source filtering** — A filter panel lets you show/hide specific sources without reloading.
 - **Light / Dark theme** — Persisted in `localStorage`.
 - **Zero dependencies** — Vanilla JS, custom CSS, no framework, no bundler.
+- **CVEs persistence** — up to 50 CVEs stored: the 25 most recent in `localStorage` (TTL: 7 days, survives tab close), the 25 oldest in `sessionStorage` (TTL: 4 hours, cleared on tab close).
 
 ---
 

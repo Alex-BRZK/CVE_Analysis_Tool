@@ -31,7 +31,7 @@
 .card-meta-row .sep{color:var(--border)}
 .card-meta-row .date{font-family:var(--font-mono);font-size:11px}
 .cve-title{font-family:var(--font-mono);font-size:20px;font-weight:700;letter-spacing:-.5px;color:var(--text)}
-.card-chips-right{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;align-items:flex-start;max-width:55%}
+.card-chips-right{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;align-items:flex-start;max-width:90%}
 .source-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;
   background:var(--bg);border:1px solid var(--border);border-radius:20px;
   font-size:11px;font-weight:500;text-decoration:none;color:var(--text-muted);
@@ -121,15 +121,26 @@ details[open] .refs-arrow{transform:rotate(90deg)}
 .no-cvelist-label{display:inline-block;margin-bottom:12px;font-family:var(--font-mono);
   font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
   color:var(--cvss-high);padding:2px 7px;border:1px solid var(--cvss-high);border-radius:4px;opacity:.8}
-/* Filter panel */
-.filter-btn{position:relative}
-.filter-btn.active{background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.4);color:var(--accent)}
-.filter-panel{display:none;position:fixed;top:92px;right:16px;z-index:200;
+/* Options panel */
+.options-btn.active{background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.4);color:var(--accent)}
+.options-panel{display:none;position:fixed;top:92px;right:16px;z-index:200;
   background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
-  box-shadow:0 8px 32px rgba(0,0,0,.14);padding:14px 16px;min-width:280px;max-width:340px}
-.filter-panel.open{display:block}
-.filter-panel-title{font-family:var(--font-mono);font-size:11px;font-weight:700;
-  letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px}
+  box-shadow:0 8px 32px rgba(0,0,0,.18);padding:16px;min-width:300px;max-width:360px}
+.options-panel.open{display:block}
+.options-section{margin-bottom:16px}
+.options-section:last-child{margin-bottom:0}
+.options-section-title{font-family:var(--font-mono);font-size:10px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;
+  display:flex;align-items:center;gap:6px}
+.options-section-title::after{content:"";flex:1;height:1px;background:var(--border)}
+.sort-select{width:100%;padding:7px 10px;font-family:var(--font-mono);font-size:12px;font-weight:500;
+  background:var(--bg);color:var(--text);border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);cursor:pointer;outline:none;transition:border-color .15s;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center;padding-right:26px}
+.sort-select:focus{border-color:var(--accent)}
+[data-theme="dark"] .sort-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")}
 .filter-chips{display:flex;flex-wrap:wrap;gap:6px}
 .filter-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:20px;
   font-family:var(--font-mono);font-size:11px;font-weight:600;cursor:pointer;
@@ -139,8 +150,26 @@ details[open] .refs-arrow{transform:rotate(90deg)}
 .filter-chip.locked{border-color:var(--cvss-low);background:rgba(34,197,94,.08);
   color:var(--cvss-low);cursor:default;opacity:.8}
 .filter-chip .fc-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
-.filter-hint{font-size:10px;font-family:var(--font-sans);color:var(--text-muted);
-  margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
+.filter-hint{font-size:10px;font-family:var(--font-sans);color:var(--text-muted);margin-top:8px}
+.clear-all-btn{width:100%;padding:7px 12px;font-size:12px;font-weight:600;font-family:var(--font-sans);
+  background:transparent;color:var(--cvss-critical);border:1.5px solid var(--cvss-critical);
+  border-radius:var(--radius-sm);cursor:pointer;transition:background .15s;
+  display:flex;align-items:center;gap:7px}
+.clear-all-btn:hover{background:rgba(239,68,68,.08)}
+/* Card action buttons */
+.card-top-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.card-actions{display:flex;gap:3px;align-items:center}
+.card-action-btn{width:22px;height:22px;border:none;background:transparent;cursor:pointer;
+  color:var(--text-muted);border-radius:4px;display:flex;align-items:center;justify-content:center;
+  padding:2px;transition:color .15s,background .15s;flex-shrink:0}
+.card-action-btn:hover{background:var(--card-hover)}
+.card-action-btn svg{width:13px;height:13px;display:block}
+.card-refresh-btn:hover{color:var(--accent)}
+.card-delete-btn:hover{color:var(--cvss-critical)}
+.card-refresh-btn.spinning svg{animation:spin 0.8s linear infinite}
+/* Footer GitHub */
+.footer-github{display:inline-flex;align-items:center}
+.github-icon{width:14px;height:14px;fill:currentColor;display:block}
 @media(max-width:700px){
   .main{padding:14px 12px}.cve-card{padding:16px}
   .cve-title{font-size:16px}.cwe-chip-name{display:none}.card-chips-right{max-width:60%}
@@ -170,14 +199,45 @@ details[open] .refs-arrow{transform:rotate(90deg)}
       <input id="searchInput" type="text" placeholder="CVE-2024-12345  or  paste a list of CVEs…" autocomplete="off" spellcheck="false">
       <button id="searchBtn" class="btn btn-primary" type="submit" disabled>Search</button>
     </form>
-    <button id="filterBtn" class="btn btn-ghost filter-btn" onclick="toggleFilterPanel()" title="Filter sources">⊟ Filter</button>
+    <button id="optionsBtn" class="btn btn-ghost options-btn" onclick="toggleOptionsPanel()" title="Options">⚙ Options</button>
   </div>
 </header>
 
-<div id="filterPanel" class="filter-panel">
-  <div class="filter-panel-title">Visible sources</div>
-  <div class="filter-chips" id="filterChips"></div>
-  <div class="filter-hint">NVD and CVEList are still displayed. Click to enable/disable a source.</div>
+<div id="optionsPanel" class="options-panel">
+
+  <div class="options-section">
+    <div class="options-section-title">Sort</div>
+    <select id="sortSelect" class="sort-select" onchange="setSort(this.value)">
+      <option value="none">— No sort —</option>
+      <optgroup label="CVSS Score">
+        <option value="cvss-desc">▼ CVSS (highest first)</option>
+        <option value="cvss-asc">▲ CVSS (lowest first)</option>
+      </optgroup>
+      <optgroup label="Date Published">
+        <option value="date-desc">▼ Date (newest first)</option>
+        <option value="date-asc">▲ Date (oldest first)</option>
+      </optgroup>
+      <optgroup label="CVE ID">
+        <option value="id-asc">▲ CVE ID (A→Z)</option>
+        <option value="id-desc">▼ CVE ID (Z→A)</option>
+      </optgroup>
+    </select>
+  </div>
+
+  <div class="options-section">
+    <div class="options-section-title">Visible sources</div>
+    <div class="filter-chips" id="filterChips"></div>
+    <div class="filter-hint">NVD and CVEList are always visible.</div>
+  </div>
+
+  <div class="options-section" id="clearSection" style="display:none">
+    <div class="options-section-title">Cards</div>
+    <button class="clear-all-btn" onclick="clearAllCves()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      Remove all CVE cards
+    </button>
+  </div>
+
 </div>
 
 <main class="main"><div id="cveResults"></div></main>

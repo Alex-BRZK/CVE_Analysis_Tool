@@ -229,6 +229,8 @@
   .release { padding-left: 34px; }
   .release-card { padding: 16px; }
 }
+.footer-github{display:inline-flex;align-items:center}
+.github-icon{width:14px;height:14px;fill:currentColor;display:block}
 </style>
 </head>
 <body>
@@ -268,11 +270,46 @@
       <div class="release-card current-release">
         <div class="release-card-top">
           <div>
-            <div class="release-version">v1.0 — Current</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Full multi-source aggregator - First version publishing</div>
+            <div class="release-version">v1.1 — Current</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Card management · Sort · Session persistence</div>
           </div>
           <div class="release-version-badges">
             <span class="release-tag tag-current">Current</span>
+            <span class="release-date">22/03/2026</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">💾</span><span class="change-text"><strong>CVE persistence</strong> — searched CVEs are stored in <code>localStorage</code> and automatically restored when navigating back to the search page, so results survive page changes within the same browser session.</span></li>
+              <li class="change-item"><span class="change-icon">⚡</span><span class="change-text"><strong>Session cache</strong> — all fetched source data is saved in <code>sessionStorage</code> (TTL: 4 hours). When a CVE is restored from <code>localStorage</code>, no new network requests are made — the card is rebuilt instantly from the cached data. Cache is cleared when the browser tab is closed.</span></li>
+              <li class="change-item"><span class="change-icon">🔄</span><span class="change-text"><strong>Refresh button per card</strong> — a ↻ button in the top-right corner of each card re-queries only the sources that previously returned a red (not found) or black/white (network error) dot, without touching already-successful sources.</span></li>
+              <li class="change-item"><span class="change-icon">🗑️</span><span class="change-text"><strong>Delete button per card</strong> — a trash icon next to the refresh button removes a single CVE card and clears it from <code>localStorage</code> and the session cache.</span></li>
+              <li class="change-item"><span class="change-icon">⚙️</span><span class="change-text"><strong>Options panel</strong> — the search bar now has a single <em>⚙ Options</em> button that opens a unified panel containing: Sort, Visible sources (filter), and Remove all cards. This replaces the previous standalone Filter button.</span></li>
+              <li class="change-item"><span class="change-icon">⇅</span><span class="change-text"><strong>Sort</strong> — CVE cards can be sorted by CVSS score (ascending / descending), publication date, or CVE ID. The sort updates live as new CVSS scores arrive from Phase-2 sources.</span></li>
+            </ul>
+            <div class="change-group-label">Improvement</div>
+              <ul class="change-list">
+                <li class="change-item"><span class="change-icon">🔗</span><span class="change-text"><strong>GitHub link in footer</strong> — a GitHub icon has been added to the footer of all pages, linking to the project repository.</span></li>
+                <li class="change-item"><span class="change-icon">🩹</span><span class="change-text">Correction of a few details in all pages</span></li>
+              </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── v1.0 ─────────────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot latest"><div class="release-dot-inner"></div></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v1.0</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Full multi-source aggregator - First version publishing</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
             <span class="release-date">18/03/2026</span>
           </div>
         </div>
@@ -288,7 +325,7 @@
             <div class="change-group-label">Improvement</div>
                 <ul class="change-list">
                   <li class="change-item"><span class="change-icon">🖌️</span><span class="change-text">Separate page "About" in "Technical Docs" and "User Guide"</span></li>
-                  <li class="change-item"><span class="change-icon">🩹</span><span class="change-text">Correction of few bugs in search method</span></li>
+                  <li class="change-item"><span class="change-icon">🩹</span><span class="change-text">Correction of a few bugs in search method</span></li>
                   <li class="change-item"><span class="change-icon">💨</span><span class="change-text">File HTML split in multiple files (.js, .css ...)</span></li>
                 </ul>
             </div>
@@ -618,7 +655,6 @@
       <li class="roadmap-item"><span class="roadmap-icon">🔜</span>Export card data to JSON or CSV</li>
       <li class="roadmap-item"><span class="roadmap-icon">🔜</span>Additional sources</li>
       <li class="roadmap-item"><span class="roadmap-icon">🔜</span>EPSS score integration (Exploit Prediction Scoring System)</li>
-      <li class="roadmap-item"><span class="roadmap-icon">🔜</span>Browser history / session persistence for already-searched CVEs</li>
       <li class="roadmap-item"><span class="roadmap-icon">💡</span>Pull-request ideas welcome</li>
     </ul>
   </div>
@@ -637,6 +673,9 @@
       <a href="user-guide.html">User Guide</a>
       <a href="technical-doc.html">Tech Docs</a>
       <a href="contact.html">Contact</a>
+      <a href="https://github.com/Alex-BRZK" target="_blank" rel="noopener noreferrer" class="footer-github" title="GitHub — Alex-BRZK">
+        <svg class="github-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      </a>
     </div>
   </div>
 </footer>

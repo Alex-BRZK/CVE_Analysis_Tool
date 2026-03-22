@@ -270,6 +270,8 @@ code {
   .section-title { font-size: 18px; }
 }
 [id] { scroll-margin-top: 68px; }
+.footer-github{display:inline-flex;align-items:center}
+.github-icon{width:14px;height:14px;fill:currentColor;display:block}
 
 </style>
 </head>
@@ -310,7 +312,11 @@ code {
       <li class="toc-item"><a class="toc-link sub" href="#cwe">CWE classifications</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#refs">References</a></li>
       <li class="toc-sep"></li>
-      <li class="toc-item"><a class="toc-link" href="#filter">Source filter</a></li>
+      <li class="toc-item"><a class="toc-link" href="#options">Options panel</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#filter">Source filter</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#sort">Sort</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#card-actions">Card actions</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#persistence">CVE persistence</a></li>
       <li class="toc-item"><a class="toc-link" href="#theme">Dark / Light mode</a></li>
       <li class="toc-item"><a class="toc-link" href="#tips">Tips &amp; best practices</a></li>
       <li class="toc-item"><a class="toc-link" href="#limitations">Known limitations</a></li>
@@ -326,7 +332,7 @@ code {
       <h2 class="section-title">Introduction</h2>
       <p class="doc-p">
         <strong>CVE Analysis Tool</strong> (CAT) is a browser-based intelligence aggregator that pulls
-        vulnerability data for any CVE from <strong>differents sources</strong> simultaneously and presents
+        vulnerability data for any CVE from <strong>different sources</strong> simultaneously and presents
         them side-by-side in a single, unified card. No registration required — all data is fetched live
         on demand.
       </p>
@@ -393,7 +399,7 @@ code {
       <div class="callout callout-tip">
         <span class="callout-icon">💡</span>
         <span>CVEs you have already searched in the current session are deduplicated — pasting the same
-        ID again does nothing. A 250 ms delay is added between consecutive CVEs to avoid rate-limiting.</span>
+        ID again does nothing. A 400 ms delay is added between consecutive CVEs to avoid rate-limiting.</span>
       </div>
     </section>
 
@@ -458,14 +464,14 @@ code {
         of the CVE entry.
       </p>
       <p class="doc-p">
-        If a CVE is not yet in the CVEList repository (GitHub CVEProject/cvelistV5), the card will show a
+        If a CVE is not yet in the CVEList repository (GitHub CVEProject/cvelistV5), the card will show an
         <strong>orange "Not in CVEList" label</strong> and a left-side orange border. This is common for
         very recently reserved CVEs that haven't been assigned a description yet.
       </p>
 
       <h3 class="section-subtitle" id="source-dots">② Source status dots</h3>
       <p class="doc-p">
-        All the sources is shown as a pill in the top-right of the card. The <strong>coloured dot</strong>
+        Each source is shown as a pill in the top-right of the card. The <strong>coloured dot</strong>
         indicates the status for that source. Dots update in real time as responses arrive:
       </p>
       <div class="dot-table">
@@ -559,7 +565,7 @@ code {
         string, allowing you to inspect each metric in detail.
       </p>
       <p class="doc-p">
-        CAT supports <strong>CVSS v2.0, v3.0, v3.1, and v4.0</strong>. The scores are sorted by decreasing value (highest first), then by CVSS score version (v3.x -> v4 -> v2). Different scores from
+        CAT supports <strong>CVSS v2.0, v3.0, v3.1, and v4.0</strong>. The scores are sorted by decreasing value (highest first); ties are broken by version (v4.0 &gt; v3.1 &gt; v3.0 &gt; v2.0). Different scores from
         different sources for the same CVE are normal — vendors often provide their own CVSS analysis.
       </p>
 
@@ -585,23 +591,63 @@ code {
       </p>
     </section>
 
-    <!-- FILTER -->
-    <section class="doc-section" id="filter">
+    <!-- OPTIONS PANEL -->
+    <section class="doc-section" id="options">
       <div class="section-eyebrow">Interface controls</div>
-      <h2 class="section-title">Source filter</h2>
+      <h2 class="section-title">Options panel</h2>
       <p class="doc-p">
-        The <strong>⊟ Filter</strong> button in the header opens a panel where you can enable or disable individual sources. When a source is disabled (Unless another active source shares the same information):
+        The <strong>⚙ Options</strong> button in the search bar opens a unified panel with three sections: <strong>Sort</strong>, <strong>Visible sources</strong>, and <strong>Cards</strong>. Click anywhere outside the panel to close it.
       </p>
-      <ul style="font-size:14px;line-height:1.9;padding-left:20px;max-width:640px;margin-bottom:14px">
-        <li>Its description row is hidden.</li>
-        <li>Its CVSS badges are hidden.</li>
-        <li>Its reference links are hidden.</li>
-        <li>Its CWE chips are hidden.</li>
-      </ul>
+
+      <h3 class="section-subtitle" id="filter">Source filter</h3>
+      <p class="doc-p">
+        The <em>Visible sources</em> section lets you enable or disable individual sources. When a source is disabled, all content attributed exclusively to it is hidden — its description row, CVSS badges, CWE chips, and reference links — unless another active source shares the same information.
+      </p>
       <div class="callout callout-info">
         <span class="callout-icon">ℹ️</span>
-        <span><strong>NVD</strong> and <strong>CVEList</strong> are always visible and cannot be disabled
-        — they form the baseline. All other sources can be freely toggled. The filter is not persistent between sessions.</span>
+        <span><strong>NVD</strong> and <strong>CVEList</strong> are always visible and cannot be disabled — they form the baseline. All other sources can be freely toggled. The filter is not persistent between sessions.</span>
+      </div>
+
+      <h3 class="section-subtitle" id="sort">Sort</h3>
+      <p class="doc-p">
+        The <em>Sort</em> options reorders all CVE cards currently on the page. Six options are available:
+      </p>
+      <ul style="font-size:14px;line-height:1.9;padding-left:20px;max-width:640px;margin-bottom:14px">
+        <li><strong>CVSS highest / lowest first</strong> — sorted by CVSS score (CVEs without a score appear last).</li>
+        <li><strong>Date newest first / oldest first</strong> — sorted by CVEList publication date.</li>
+        <li><strong>CVE ID A→Z / Z→A</strong> — lexicographic sort on the CVE identifier.</li>
+      </ul>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span>The sort is <strong>live</strong> — if a CVSS score arrives from a Phase-2 source after the card is rendered, the card is repositioned automatically if a sort is active.</span>
+      </div>
+
+      <h3 class="section-subtitle" id="card-actions">Card actions</h3>
+      <p class="doc-p">
+        Each CVE card has two small action buttons in its top-right corner:
+      </p>
+      <ul style="font-size:14px;line-height:1.9;padding-left:20px;max-width:640px;margin-bottom:14px">
+        <li><strong>↻ Refresh</strong> — re-queries only the sources that returned a red (not found) or black/white (network error) dot. Sources that already responded successfully are left untouched. The icon spins while requests are in flight.</li>
+        <li><strong>🗑 Delete</strong> — removes the card from the page and clears the CVE from the persistent storage and session cache. The card example reappears if no cards remain.</li>
+      </ul>
+      <p class="doc-p">
+        The <em>Cards</em> section of the Options panel also contains a <strong>Remove all CVE cards</strong> button, which deletes every card at once and clears all stored CVEs. This section is only visible when at least one card is present.
+      </p>
+
+      <h3 class="section-subtitle" id="persistence">CVE persistence</h3>
+      <p class="doc-p">
+        To avoid re-fetching all sources on every page return, searched CVEs are automatically saved to <code>sessionStorage</code> and <code>localStorage</code>. When you navigate to another page and come back to the search page, all previous CVE cards are restored — in the same order — without any user action required.
+      </p>
+      <p class="doc-p">
+        50 CVEs are automatically stored, 25 in <code>localStorage</code> and the 25 oldest in <code>sessionStorage</code>.
+      </p>
+
+      <p class="doc-p">
+       Once the TTL expires, or when the browser tab is closed, the session cache is cleared and a fresh fetch is performed on the next visit only for the 25 oldest CVEs. The 25 most recent CVEs are rebuilt instantly from <code>localStorage</code> without any network request.
+      </p>
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>Deleting a card or using <em>Remove all</em> clears both the <code>localStorage</code> and <code>sessionStorage</code> entry and the session cache for the affected CVEs.</span>
       </div>
     </section>
 
@@ -650,7 +696,7 @@ code {
       <div class="section-eyebrow">Caveats</div>
       <h2 class="section-title">Known limitations</h2>
       <p class="doc-p">
-        <strong>Data freshness:</strong> All data is fetched live on demand. For CVEs published very recently, some sources may not have ingested them yet — especially NVD, which can take few days or weeks after a CVE is reserved.
+        <strong>Data freshness:</strong> All data is fetched live on demand. For CVEs published very recently, some sources may not have ingested them yet — especially NVD, which can take a few days or weeks after a CVE is reserved.
       </p>
       <p class="doc-p">
         <strong>Amazon Linux:</strong> The Amazon Linux page is scraped via HTML. Layout changes on their
@@ -667,6 +713,9 @@ code {
       <p class="doc-p">
         <strong>Not a substitute for vendor advisories:</strong> Always verify with the official vendor
         advisory before taking remediation decisions. CVSS scores, descriptions and sources reported here are informational only.
+      </p>
+      <p class="doc-p">
+        <strong>Session cache staleness:</strong> Cached card data is reused for up to 4 hours. If a CVE was updated by a source (new CVSS score, new advisory) within that window, the cached version will not reflect the change until the TTL expires or the card is deleted and re-searched.
       </p>
     </section>
 
@@ -685,6 +734,9 @@ code {
       <a href="user-guide.html">User Guide</a>
       <a href="technical-doc.html">Tech Docs</a>
       <a href="contact.html">Contact</a>
+      <a href="https://github.com/Alex-BRZK" target="_blank" rel="noopener noreferrer" class="footer-github" title="GitHub — Alex-BRZK">
+        <svg class="github-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      </a>
     </div>
   </div>
 </footer>

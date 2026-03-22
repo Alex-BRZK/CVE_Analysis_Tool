@@ -147,6 +147,8 @@ pre .c { color: var(--text-muted); }            /* comment */
 }
 
 [id] { scroll-margin-top: 68px; }
+.footer-github{display:inline-flex;align-items:center}
+.github-icon{width:14px;height:14px;fill:currentColor;display:block}
 </style>
 </head>
 <body>
@@ -197,6 +199,10 @@ pre .c { color: var(--text-muted); }            /* comment */
       <li class="toc-item"><a class="toc-link sub" href="#desc-logic">Description grouping</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#cwe-logic">CWE collection</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#ref-logic">Reference filtering</a></li>
+      <li class="toc-sep"></li>
+      <li class="toc-item"><a class="toc-link" href="#state">State management</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#datacache">Data cache</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#lru">LRU eviction</a></li>
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#filestructure">File structure</a></li>
     </ul>
@@ -258,7 +264,7 @@ pre .c { color: var(--text-muted); }            /* comment */
         <strong>Phase 2 (parallel):</strong> All other sources are fetched simultaneously. Each source updates the card independently via <code>refreshCard()</code>. This allows the page to be useful before all secondary sources finish.
       </p>
       <p class="doc-p">
-        A 250 ms delay is added between cards when processing a batch search, avoiding request storms.
+        A 400 ms delay is added between cards when processing a batch search, avoiding request storms.
         The spinning ⟳ icon on the References row disappears once all Phase 2 queries have settled.
       </p>
     </section>
@@ -348,7 +354,7 @@ pre .c { color: var(--text-muted); }            /* comment */
           <span class="meta-val">CSAF VEX (primary) / Red Hat proprietary JSON (fallback)</span>
         </div>
         <p class="doc-p" style="margin-bottom:8px">
-          Two requests are made in parallel (CASF VEX and legacy API). 
+          Two requests are made in parallel (CSAF VEX and legacy API).</p>
         <p class="doc-p" style="margin-bottom:8px"><strong>Information extracted :</strong>       
           <code>Description</code>,
           <code>Score CVSS</code>,
@@ -436,7 +442,7 @@ pre .c { color: var(--text-muted); }            /* comment */
           <code>References urls</code>.
         </p>
         <p class="doc-p" style="margin-bottom:0">
-          Like Redhat, the fallback URL is used to commplete the primary URL, if needed.
+          Like Red Hat, the fallback URL is used to complete the primary URL, if needed.
         </p>
       </div>
 
@@ -556,7 +562,7 @@ pre .c { color: var(--text-muted); }            /* comment */
           <span class="meta-val">GET HTML → DOMParser</span>
         </div>
         <p class="doc-p" style="margin-bottom:0">
-          Due to HTML format, only the description is exported from this source. But the CVSS score is also provided.
+          Only a description is extracted from this source. Oracle does not publish machine-readable CVSS data on their individual CVE alert pages.
         </p>
       </div>
 
@@ -667,19 +673,69 @@ pre .c { color: var(--text-muted); }            /* comment */
       </p>
     </section>
 
+    <!-- STATE MANAGEMENT -->
+    <section class="doc-section" id="state">
+      <div class="section-eyebrow">Client-side state</div>
+      <h2 class="section-title">State management</h2>
+      <p class="doc-p">
+        CAT maintains two layers of client-side state for CVE results: a persistent list of CVEs in
+        <code>localStorage</code>, and in <code>sessionStorage</code>.
+        Neither layer requires a backend.
+      </p>
+      <h3 class="section-subtitle" id="datacache">Data cache — complementary strategy</h3>
+      <p class="doc-p">
+        To maximise both persistence and capacity, cached CVE data is split across the two stores
+        according to recency. The master list in <code>localStorage</code> holds up to
+        <strong>50 CVE IDs</strong>; when a 51st CVE is added, the oldest CVE and its data are dropped. Data for the IDs is distributed as follows: the 25 most recent are stored in <code>localStorage</code>, and the 25 oldest in <code>sessionStorage</code>.
+      </p>
+      <div class="source-card" style="max-width:680px;margin:10px 0 16px">
+        <div class="source-meta-grid">
+          <span class="meta-label">localStorage</span>
+          <span class="meta-val">25 most recent CVEs — TTL <strong>7 days</strong>. Survives tab close and browser restart.</span>
+          <span class="meta-label">sessionStorage</span>
+          <span class="meta-val">25 oldest CVEs — TTL <strong>4 hours</strong>. Cleared when the tab is closed.</span>
+        </div>
+      </div>
+      <p class="doc-p">
+      <p class="doc-p">
+        When a CVEs is searched, <code>sessionLoad(cve)</code> checks <code>localStorage</code> first, then
+        <code>sessionStorage</code>. Each entry embeds its own <code>ttl</code> field so the correct
+        expiry is applied regardless of which store it came from.
+      </p>
+      <p class="doc-p">
+        This means that on a <strong>new browser session</strong>, the 25 most recent CVEs are
+        restored instantly from <code>localStorage</code> (no network requests), while the 25 older
+        ones trigger a fresh fetch — exactly like a first-time search for those CVEs.
+      </p>
+      <h3 class="section-subtitle" id="lru">LRU eviction</h3>
+      <p class="doc-p">
+        The limit of <code>sessionStorage</code> is 5 MB. When this limit is reached (between 25 and 50 CVEs depending on 
+        the data richness), the Least Recently Used (LRU) strategy is implemented: 
+      </p>
+      <ol style="font-size:13px;line-height:1.9;padding-left:20px;max-width:680px;margin-bottom:14px;color:var(--text)">
+        <li>Attempt to write the new entry.</li>
+        <li>If a <code>QuotaExceededError</code> is caught, scan all CVEs in
+            <code>sessionStorage</code> and find the one with the <strong>lowest
+            timestamp</strong> (oldest write time).</li>
+        <li>Remove that entry and retry the write.</li>
+        <li>Repeat up to 60 times until the write succeeds or no evictable entries remain.</li>
+      </ol>
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>The eviction only affects the session cache. The <code>localStorage</code> CVE list is never touched by the LRU logic — all CVE IDs remain persistent
+        regardless of cache pressure.</span>
+      </div>
+    </section>
+
     <!-- FILE STRUCTURE -->
     <section class="doc-section" id="filestructure">
       <div class="section-eyebrow">Project</div>
       <h2 class="section-title">File structure</h2>
       <pre>
 <span class="c">── Project root ───────────────────────────────────</span>
-  shared.css          <span class="c">CSS variables, header, footer,</span>
-                      <span class="c">nav, buttons — used by all pages</span>
+  shared.css          <span class="c">CSS variables, nav, buttons — used by all pages</span>
   app.js              <span class="c">All JS logic for the main page</span>
-                      <span class="c">(source configs, fetchers, DOM builders,</span>
-                      <span class="c">filter, theme toggle)</span>
   index.html          <span class="c">Main CVE search page</span>
-                      <span class="c">Card-specific CSS inline + &lt;script src="app.js"&gt;</span>
   user-guide.html     <span class="c">User guide</span>
   technical-doc.html  <span class="c">Technical documentations</span>
   changelog.html      <span class="c">Version history</span>
@@ -687,7 +743,7 @@ pre .c { color: var(--text-muted); }            /* comment */
 <span class="c">────────────────────────────────────────────────────</span></pre>
 
       <p class="doc-p">
-        Splitting into separate files provides several practical benefits: the main page's 1200-line <code>app.js</code> can be edited without touching HTML; <code>shared.css</code> ensures all pages share the same design tokens and navigation without copy-paste; and the three documentation pages are purely HTML/CSS with no dependency on <code>app.js</code>, so they load immediately.
+        Splitting into separate files provides several practical benefits: the main page's <code>app.js</code> can be edited without touching HTML; <code>shared.css</code> ensures all pages share the same design tokens and navigation without copy-paste; and the three documentation pages are purely HTML/CSS with no dependency on <code>app.js</code>, so they load immediately.
       </p>
       <div class="callout callout-info">
         <span class="callout-icon">ℹ️</span>
@@ -710,6 +766,9 @@ pre .c { color: var(--text-muted); }            /* comment */
       <a href="user-guide.html">User Guide</a>
       <a href="technical-doc.html">Tech Docs</a>
       <a href="contact.html">Contact</a>
+      <a href="https://github.com/Alex-BRZK" target="_blank" rel="noopener noreferrer" class="footer-github" title="GitHub — Alex-BRZK">
+        <svg class="github-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      </a>
     </div>
   </div>
 </footer>

@@ -313,6 +313,8 @@ code {
       <li class="toc-item"><a class="toc-link sub" href="#refs">References</a></li>
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#options">Options panel</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#cve-navigator">CVE navigator</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#field-filter">Field visibility</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#filter">Source filter</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#sort">Sort</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#card-actions">Card actions</a></li>
@@ -596,8 +598,26 @@ code {
       <div class="section-eyebrow">Interface controls</div>
       <h2 class="section-title">Options panel</h2>
       <p class="doc-p">
-        The <strong>⚙ Options</strong> button in the search bar opens a unified panel with three sections: <strong>Sort</strong>, <strong>Visible sources</strong>, and <strong>Cards</strong>. Click anywhere outside the panel to close it.
+        The <strong>⚙ Options</strong> button in the search bar opens a unified panel with four sections: <strong>Sort</strong>, <strong>Visible fields</strong>, <strong>Visible sources</strong>, and <strong>Cards</strong>. Click anywhere outside the panel to close it. Sort, field visibility, and source filter preferences are all persisted in <code>localStorage</code> and restored on every visit.
       </p>
+
+      <h3 class="section-subtitle" id="cve-navigator">CVE navigator</h3>
+      <p class="doc-p">
+        The <strong>CVEs</strong> button embedded at the left of the search bar shows a count badge of how many CVE cards are currently on the page. Clicking it opens a compact dropdown listing every active CVE with a colour-coded dot reflecting its highest CVSS severity. Clicking any entry smoothly scrolls to the corresponding card and briefly highlights it with a blue glow. The dropdown closes automatically when you click anywhere outside it.
+      </p>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span>The navigator list always reflects the current card order — if you apply a sort, the order in the list updates accordingly.</span>
+      </div>
+
+      <h3 class="section-subtitle" id="field-filter">Field visibility</h3>
+      <p class="doc-p">
+        The <em>Visible fields</em> section lets you hide entire sections across all CVE cards at once. The available toggles are: <strong>Description</strong>, <strong>CVSS v3</strong>, <strong>CVSS v4</strong>, <strong>CVSS v2</strong>, <strong>CWE</strong>, and <strong>References</strong>. Hiding a field does not delete its data — re-enabling the toggle instantly restores it. This preference is persisted in <code>localStorage</code>.
+      </p>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span>If you are only interested in critical metadata, try hiding Description and References to get a compact view focused on CVSS scores and CWE classifications.</span>
+      </div>
 
       <h3 class="section-subtitle" id="filter">Source filter</h3>
       <p class="doc-p">
@@ -605,12 +625,12 @@ code {
       </p>
       <div class="callout callout-info">
         <span class="callout-icon">ℹ️</span>
-        <span><strong>NVD</strong> and <strong>CVEList</strong> are always visible and cannot be disabled — they form the baseline. All other sources can be freely toggled. The filter is not persistent between sessions.</span>
+        <span><strong>NVD</strong> and <strong>CVEList</strong> are always visible and cannot be disabled — they form the baseline. All other sources can be freely toggled. This preference is persisted in <code>localStorage</code>.</span>
       </div>
 
       <h3 class="section-subtitle" id="sort">Sort</h3>
       <p class="doc-p">
-        The <em>Sort</em> options reorders all CVE cards currently on the page. Six options are available:
+        The <em>Sort</em> options reorder all CVE cards currently on the page. Six options are available:
       </p>
       <ul style="font-size:14px;line-height:1.9;padding-left:20px;max-width:640px;margin-bottom:14px">
         <li><strong>CVSS highest / lowest first</strong> — sorted by CVSS score (CVEs without a score appear last).</li>
@@ -619,7 +639,7 @@ code {
       </ul>
       <div class="callout callout-tip">
         <span class="callout-icon">💡</span>
-        <span>The sort is <strong>live</strong> — if a CVSS score arrives from a Phase-2 source after the card is rendered, the card is repositioned automatically if a sort is active.</span>
+        <span>The sort is <strong>live</strong> — if a CVSS score arrives from a Phase-2 source after the card is rendered, the card is repositioned automatically. Repositioning is debounced so cards do not jump repeatedly when multiple sources respond at the same time. Sort preference is persisted in <code>localStorage</code>.</span>
       </div>
 
       <h3 class="section-subtitle" id="card-actions">Card actions</h3>
@@ -627,8 +647,8 @@ code {
         Each CVE card has two small action buttons in its top-right corner:
       </p>
       <ul style="font-size:14px;line-height:1.9;padding-left:20px;max-width:640px;margin-bottom:14px">
-        <li><strong>↻ Refresh</strong> — re-queries only the sources that returned a red (not found) or black/white (network error) dot. Sources that already responded successfully are left untouched. The icon spins while requests are in flight.</li>
-        <li><strong>🗑 Delete</strong> — removes the card from the page and clears the CVE from the persistent storage and session cache. The card example reappears if no cards remain.</li>
+        <li><strong>↻ Refresh</strong> — re-queries only the sources that returned a red (not found) or black/white (network error) dot. Sources that already responded successfully are left untouched. If CVEList failed on the initial load (reserved-but-unpublished CVE), it is also silently retried — on success the card header, assigner, date, and CVEList scores are updated in place. The icon spins while requests are in flight.</li>
+        <li><strong>🗑 Delete</strong> — removes the card from the page and clears the CVE from the persistent storage and session cache. The example card reappears if no cards remain.</li>
       </ul>
       <p class="doc-p">
         The <em>Cards</em> section of the Options panel also contains a <strong>Remove all CVE cards</strong> button, which deletes every card at once and clears all stored CVEs. This section is only visible when at least one card is present.
@@ -639,11 +659,10 @@ code {
         To avoid re-fetching all sources on every page return, searched CVEs are automatically saved to <code>sessionStorage</code> and <code>localStorage</code>. When you navigate to another page and come back to the search page, all previous CVE cards are restored — in the same order — without any user action required.
       </p>
       <p class="doc-p">
-        50 CVEs are automatically stored, 25 in <code>localStorage</code> and the 25 oldest in <code>sessionStorage</code>.
+        50 CVEs are automatically stored: 25 most recent in <code>localStorage</code> and the 25 oldest in <code>sessionStorage</code>.
       </p>
-
       <p class="doc-p">
-       Once the TTL expires, or when the browser tab is closed, the session cache is cleared and a fresh fetch is performed on the next visit only for the 25 oldest CVEs. The 25 most recent CVEs are rebuilt instantly from <code>localStorage</code> without any network request.
+        Once the TTL expires, or when the browser tab is closed, the session cache is cleared and a fresh fetch is performed on the next visit only for the 25 oldest CVEs. The 25 most recent CVEs are rebuilt instantly from <code>localStorage</code> without any network request.
       </p>
       <div class="callout callout-info">
         <span class="callout-icon">ℹ️</span>

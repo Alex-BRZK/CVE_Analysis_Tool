@@ -203,6 +203,13 @@ pre .c { color: var(--text-muted); }            /* comment */
       <li class="toc-item"><a class="toc-link" href="#state">State management</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#datacache">Data cache</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#lru">LRU eviction</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#localstorage-keys">localStorage keys</a></li>
+      <li class="toc-sep"></li>
+      <li class="toc-item"><a class="toc-link" href="#ui">UI architecture</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#ui-navigator">CVE navigator</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#ui-fields">Field visibility</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#ui-sort">Sort debounce</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#ui-refresh">Smart refresh</a></li>
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#filestructure">File structure</a></li>
     </ul>
@@ -472,7 +479,7 @@ pre .c { color: var(--text-muted); }            /* comment */
           <code>References urls</code>.
         </p>
         <p class="doc-p" style="margin-bottom:0">
-          <strong>Dot logic:</strong> Green if any of the three sources returns data. Dark (network error) only if both CSAF and SUG API return HTTP 0. Red otherwise.
+          <strong>Dot logic:</strong> Green if any of the three sources returns data. Black/white (network error) only if both CSAF and SUG API return HTTP 0. Red otherwise.
         <div class="callout callout-warn">
           <span class="callout-icon">⚠️</span>
           <span>
@@ -688,7 +695,7 @@ pre .c { color: var(--text-muted); }            /* comment */
         according to recency. The master list in <code>localStorage</code> holds up to
         <strong>50 CVE IDs</strong>; when a 51st CVE is added, the oldest CVE and its data are dropped. Data for the IDs is distributed as follows: the 25 most recent are stored in <code>localStorage</code>, and the 25 oldest in <code>sessionStorage</code>.
       </p>
-      <div class="source-card" style="max-width:680px;margin:10px 0 16px">
+      <div class="source-card" style="max-width:680px;margin:10px 0 20px">
         <div class="source-meta-grid">
           <span class="meta-label">localStorage</span>
           <span class="meta-val">25 most recent CVEs — TTL <strong>7 days</strong>. Survives tab close and browser restart.</span>
@@ -725,6 +732,47 @@ pre .c { color: var(--text-muted); }            /* comment */
         <span>The eviction only affects the session cache. The <code>localStorage</code> CVE list is never touched by the LRU logic — all CVE IDs remain persistent
         regardless of cache pressure.</span>
       </div>
+
+      <h3 class="section-subtitle" id="localstorage-keys">Cache keys reference</h3>
+      <p class="doc-p">All keys written by CAT in <code>localStorage</code>:</p>
+      <div class="source-card" style="max-width:680px;margin:10px 0 16px">
+        <div class="source-meta-grid">
+          <span class="meta-label">cat_cves</span>
+          <span class="meta-val">JSON array of up to 50 CVE IDs, ordered oldest → newest.</span>
+          <span class="meta-label">cat_cve_{ID}</span>
+          <span class="meta-val">Serialised card data (ctx, cvssBase, dotStatuses). Present in <code>localStorage</code> for the 25 most recent, in <code>sessionStorage</code> for the 25 oldest.</span>
+          <span class="meta-label">cat_sort</span>
+          <span class="meta-val">Active sort key — one of <code>none</code>, <code>cvss-desc</code>, <code>cvss-asc</code>, <code>date-desc</code>, <code>date-asc</code>, <code>id-asc</code>, <code>id-desc</code>.</span>
+          <span class="meta-label">cat_filters</span>
+          <span class="meta-val">JSON array of active source names (e.g. <code>["NVD","CVEList","RedHat",…]</code>).</span>
+          <span class="meta-label">cat_fields</span>
+          <span class="meta-val">JSON object mapping field keys to booleans (e.g. <code>{"desc":true,"cvss3":true,"cvss4":false,…}</code>).</span>
+          <span class="meta-label">theme</span>
+          <span class="meta-val"><code>"light"</code> or <code>"dark"</code>.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- UI ARCHITECTURE -->
+    <section class="doc-section" id="ui">
+      <div class="section-eyebrow">Interface</div>
+      <h2 class="section-title">UI architecture</h2>
+
+      <h3 class="section-subtitle" id="ui-navigator">CVE navigator</h3>
+      <p class="doc-p">
+        The navigator is a dropdown widget embedded directly to the left of the search form.
+        Each CVE in the list carries a coloured corresponding of the max CVSS score. The list is rebuilt every time after a card is added, deleted, or sorted.
+      </p>
+
+      <h3 class="section-subtitle" id="ui-fields">Field visibility</h3>
+      <p class="doc-p">
+        Field visibility is implemented entirely in CSS via body-level classes. When a field is disabled, it masks this section on all cards simultaneously—no manipulation of individual cards is required.
+      </p>
+
+      <h3 class="section-subtitle" id="ui-refresh">Smart refresh</h3>
+      <p class="doc-p">
+        The ↻ refresh button calls allows refreshing the data for all sources that failed <code>dot-fail</code> (red) or did not respond <code>dot-networkerror</code> (black/white), by making requests again. A sessionSave call at the end persists the refreshed state to cache.
+      </p>
     </section>
 
     <!-- FILE STRUCTURE -->

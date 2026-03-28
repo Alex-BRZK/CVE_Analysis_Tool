@@ -2,7 +2,7 @@
 
 > A client-side, zero-dependency web application that aggregates CVE vulnerability data in real time from multiple official sources — no installation required / no account required.
 
-![Version](https://img.shields.io/badge/version-v1.1-blue)
+![Version](https://img.shields.io/badge/version-v1.2-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 
@@ -26,7 +26,11 @@ Everything runs **100% client-side** — no backend, no installation, no data se
 - **CWE chips** — CWE identifiers are displayed as clickable chips linking to the MITRE CWE database.
 - **Source status dots** — Each source shows a real-time coloured indicator (grey → loading, green → confirmed, red → not found, orange → not affected, black/white → network error).
 - **Progressive loading** — Skeleton cards are rendered immediately while data loads in the background.
-- **Source filtering** — A filter panel lets you show/hide specific sources without reloading.
+- **CVE navigator** — A compact dropdown in the search bar lists all active CVE cards with their CVSS severity colour; clicking one scrolls and highlights the target card.
+- **Source filtering** — Toggle individual sources on/off; preference is persisted in `localStorage`.
+- **Field visibility** — Hide or show individual card sections (Description, CVSS v2/v3/v4, CWE, References) from the Options panel; preference is persisted in `localStorage`.
+- **Sort** — Sort cards by CVSS score, publication date, or CVE ID; preference is persisted in `localStorage`.
+- **Smart refresh** — The per-card ↻ button re-queries only failed/errored sources, including a silent retry of CVEList for reserved-but-unpublished CVEs.
 - **Light / Dark theme** — Persisted in `localStorage`.
 - **Zero dependencies** — Vanilla JS, custom CSS, no framework, no bundler.
 - **CVEs persistence** — up to 50 CVEs stored: the 25 most recent in `localStorage` (TTL: 7 days, survives tab close), the 25 oldest in `sessionStorage` (TTL: 4 hours, cleared on tab close).

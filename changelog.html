@@ -75,9 +75,9 @@
   justify-content: center;
   z-index: 1;
 }
-.release-dot.current { background: var(--accent); border-color: var(--card); }
-.release-dot.latest  { background: var(--cvss-low); border-color: var(--card); }
-.release-dot.minor   { background: var(--border); }
+.release-dot.current { background: var(--cvss-low); border-color: var(--card); }
+.release-dot.latest  { background: var(--accent); border-color: var(--card); }
+.release-dot.minor   { background: var(--border); }--accent
 .release-dot-inner {
   width: 6px;
   height: 6px;
@@ -136,8 +136,8 @@
   padding: 3px 8px;
   border-radius: 4px;
 }
-.tag-current  { background: rgba(37,99,235,.1);  color: var(--accent);    border: 1px solid rgba(37,99,235,.25); }
-.tag-feature  { background: rgba(34,197,94,.08); color: #16a34a;          border: 1px solid rgba(34,197,94,.25); }
+.tag-feature  { background: rgba(37,99,235,.1);  color: var(--accent);    border: 1px solid rgba(37,99,235,.25); }
+.tag-current  { background: rgba(34,197,94,.08); color: #16a34a;          border: 1px solid rgba(34,197,94,.25); }
 .tag-fix      { background: rgba(245,158,11,.08); color: #b45309;         border: 1px solid rgba(245,158,11,.25); }
 .tag-initial  { background: rgba(100,116,139,.08); color: var(--text-muted); border: 1px solid var(--border); }
 /* Change list */
@@ -270,11 +270,45 @@
       <div class="release-card current-release">
         <div class="release-card-top">
           <div>
-            <div class="release-version">v1.1 — Current</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Card management · Sort · Session persistence</div>
+            <div class="release-version">v1.2 — Current</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">CVE navigator · Field visibility · Persistent preferences · Smart refresh · Bug fixes</div>
           </div>
           <div class="release-version-badges">
             <span class="release-tag tag-current">Current</span>
+            <span class="release-date">28/03/2026</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🧭</span><span class="change-text"><strong>CVE navigator</strong> — a compact dropdown embedded in the search bar (left of the search field) lists all active CVE cards with a CVSS severity dot. Clicking any entry scrolls smoothly to the card and highlights it with a blue glow. Closes automatically on outside click. Hidden when no cards are present.</span></li>
+              <li class="change-item"><span class="change-icon">👁</span><span class="change-text"><strong>Field visibility</strong> — new <em>Visible fields</em> section in the ⚙ Options panel. Toggle Description, CVSS v3, CVSS v4, CVSS v2, CWE, and References on/off across all cards at once. Preference persisted in <code>localStorage</code>.</span></li>
+
+            </ul>
+            <div class="change-group-label">Improvement</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">💾</span><span class="change-text"><strong>Persistent preferences</strong> — Sort and Source filter are now saved to <code>localStorage</code> and restored on every page load.</span></li>
+              <li class="change-item"><span class="change-icon">📐</span><span class="change-text"><strong>Full-width cards</strong> — CVE cards now stretch to the full page.</span></li>
+              <li class="change-item"><span class="change-icon">🖥️</span><span class="change-text">Correction of a few details in all documentation pages</span></li>
+              <li class="change-item"><span class="change-icon">📃</span><span class="change-text">Improvement of the CVElist retrieval, which now reads in a second field to retrieve data (containers.cna and containers.adp)</span></li> 
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── v1.1 ──────────────────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot latest"><div class="release-dot-inner"></div></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v1.1</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Card management · Sort · Session persistence</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
             <span class="release-date">22/03/2026</span>
           </div>
         </div>

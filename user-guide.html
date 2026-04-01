@@ -310,6 +310,7 @@ code {
       <li class="toc-item"><a class="toc-link sub" href="#descriptions">Descriptions</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#cvss">CVSS scores</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#cwe">CWE classifications</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#epss">EPSS Scoring</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#refs">References</a></li>
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#options">Options panel</a></li>
@@ -420,6 +421,8 @@ code {
               <span class="mockup-assigner">mitre</span>
               <span style="color:var(--border);font-size:11px">•</span>
               <span class="mockup-date">15/01/2024</span>
+              <span style="color:var(--border);font-size:11px">•</span>
+              <span class="mockup-assigner">EPSS Score</span>
             </div>
             <div class="mockup-cve-id">CVE-2024-12345</div>
           </div>
@@ -430,7 +433,6 @@ code {
             <span class="mockup-chip"><span class="dot dot-fail"></span>Debian</span>
             <span class="mockup-chip"><span class="dot dot-ok"></span>Ubuntu</span>
             <span class="mockup-chip"><span class="dot dot-ok"></span>Microsoft</span>
-            <span class="mockup-chip"><span class="dot dot-fail"></span>Amazon</span>
             <span class="mockup-chip"><span class="dot dot-neterr"></span>LibreOffice</span>
           </div>
         </div>
@@ -454,7 +456,7 @@ code {
           <span class="cvss-pill pill-high"><span class="v">CVSS v2.0</span><span class="s">7.5</span><span class="src">NVD</span></span>
         </div>
         <div class="cwe-row">
-          <span class="cwe-pill">CWE-122<span class="cwe-pill-name"> — Heap-based Buffer Overflow</span></span>
+          <span class="cwe-pill">CWE-122<span class="cwe-pill-name"> — Heap-based Buffer Overflow</span> (NVD)</span>
         </div>
       </div>
 
@@ -581,7 +583,17 @@ code {
         Multiple sources reporting the same CWE are merged. CWEs are sorted numerically by ID.
       </p>
 
-      <h3 class="section-subtitle" id="refs">⑥ References</h3>
+      <h3 class="section-subtitle" id="epss">⑥ EPSS Scoring</h3>
+      <p class="doc-p">
+        EPSS (Exploit Prediction Scoring System) provides a data‑driven probability that a
+        vulnerability will be exploited in the next 30 days. Unlike CVSS, which measures the
+        inherent severity of a weakness, EPSS focuses on real‑world exploitation likelihood using threat intelligence, historical attack data, and machine‑learning models. The score ranges from 0 to 1 and helps teams prioritize vulnerabilities based on actual risk rather than theoretical impact.
+      </p>
+      <p class="doc-p">
+        The EPSS is defined an maintained by FIRST (https://www.first.org/epss/).
+      </p>
+
+      <h3 class="section-subtitle" id="refs">⑦ References</h3>
       <p class="doc-p">
         The references section lists all external URLs collected from all sources. References are deduplicated (the same URL from multiple sources shows an entry with merged source badges).
       </p>
@@ -696,6 +708,10 @@ code {
         <span><strong>Watch for CISA KEV.</strong> If the CISA dot is green, the vulnerability is in
         CISA's Known Exploited Vulnerabilities catalog — meaning it has been actively exploited in the wild
         and US federal agencies are required to patch it. Treat these as high priority regardless of CVSS score.</span>
+      </div>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span><strong>Check the ENISA EUVD score.</strong> If the ENISA dot is green, the EU Vulnerability Database has an independent entry for this CVE. ENISA may publish a different CVSS score or additional references compared to NVD — useful for a European regulatory context.</span>
       </div>
       <div class="callout callout-tip">
         <span class="callout-icon">💡</span>

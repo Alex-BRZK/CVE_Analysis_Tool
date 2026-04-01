@@ -193,12 +193,15 @@ pre .c { color: var(--text-muted); }            /* comment */
       <li class="toc-item"><a class="toc-link sub" href="#src-oracle">Oracle</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#src-cisa">CISA KEV</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#src-xen">Xen</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#src-enisa">ENISA EUVD</a></li>
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#logic">Processing logic</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#cvss-logic">CVSS deduplication</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#desc-logic">Description grouping</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#cwe-logic">CWE collection</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#ref-logic">Reference filtering</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#epss-logic">EPSS scoring</a></li>
+
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#state">State management</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#datacache">Data cache</a></li>
@@ -208,7 +211,6 @@ pre .c { color: var(--text-muted); }            /* comment */
       <li class="toc-item"><a class="toc-link" href="#ui">UI architecture</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#ui-navigator">CVE navigator</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#ui-fields">Field visibility</a></li>
-      <li class="toc-item"><a class="toc-link sub" href="#ui-sort">Sort debounce</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#ui-refresh">Smart refresh</a></li>
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#filestructure">File structure</a></li>
@@ -480,6 +482,7 @@ pre .c { color: var(--text-muted); }            /* comment */
         </p>
         <p class="doc-p" style="margin-bottom:0">
           <strong>Dot logic:</strong> Green if any of the three sources returns data. Black/white (network error) only if both CSAF and SUG API return HTTP 0. Red otherwise.
+        </p>
         <div class="callout callout-warn">
           <span class="callout-icon">⚠️</span>
           <span>
@@ -614,14 +617,44 @@ pre .c { color: var(--text-muted); }            /* comment */
           <span class="meta-val">HMTL + JSON</span>
         </div>
         <p class="doc-p" style="margin-bottom:8px">
-          Here the strategy is to see if the CVE is known by Xen, if so we retrieve the name of the associated notice to finally read this advisory and retrieve the desired information.
+          The strategy is to check whether the CVE is known to Xen; if so, the name of the associated advisory is retrieved to extract the relevant information.
         </p>
         <p class="doc-p" style="margin-bottom:0">
           Only the description is extracted by this editor.
         </p>
       </div>
+
+      <!-- ENISA EUVD -->
+      <div class="source-card" id="src-enisa">
+        <div class="source-card-header">
+          <span class="source-card-badge badge-enisa">ENISA</span>
+          <span class="source-card-name">ENISA European Union Vulnerability Database</span>
+          <span class="source-card-type">REST API (JSON)</span>
+        </div>
+        <div class="source-meta-grid">
+          <span class="meta-label">API URL</span>
+          <span class="meta-val meta-url">https://euvdservices.enisa.europa.eu/api/enisaid?id={CVE-ID}</span>
+          <span class="meta-label">Chip URL</span>
+          <span class="meta-val meta-url">https://euvd.enisa.europa.eu/vulnerability/{EUVD-ID}</span>
+          <span class="meta-label">Method</span>
+          <span class="meta-val">GET → JSON (single object or single-item array)</span>
+        </div>
+        <p class="doc-p" style="margin-bottom:8px">
+          It is possible to request the ENISA directly with a CVE because, the CVE can be an alias with an EUVD identifier.
+        </p>
+        <p class="doc-p" style="margin-bottom:8px">
+          <strong>Extracted fields:</strong>
+          <code>description</code>,
+          <code>baseScore</code>,
+          <code>references</code>.
+        </p>
+        <div class="callout callout-warn">
+        <span class="callout-icon">⚠️</span>
+        <span>Currently, ENISA aggregates information and does not invest heavily in enriching each vulnerability entry. As a result, this source may provide data already available from other sources.
+        </span>
+        </div>
+      </div>
     </section>
-  </section>
 
     <!-- PROCESSING LOGIC -->
     <section class="doc-section" id="logic">
@@ -677,6 +710,12 @@ pre .c { color: var(--text-muted); }            /* comment */
         "not-affected" (e.g. Ubuntu says DNE for all packages), its domain-specific links are filtered
         out. For example, Ubuntu domain links are suppressed if Ubuntu is not-affected. This avoids
         noisy references pointing to Ubuntu pages that merely confirm non-affectedness.
+      </p>
+
+      <h3 class="section-subtitle" id="epss-logic">EPSS scoring</h3>
+      <p class="doc-p">
+        EPSS scoring is retrieved from <code>first.org/epss</code>. 
+        One function queries the official EPSS API and retrieves the latest daily score.
       </p>
     </section>
 

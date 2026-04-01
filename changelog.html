@@ -264,17 +264,48 @@
 
   <div class="timeline">
 
-    <!-- ─── CURRENT RELEASE ─────────────────────────────────────── -->
+   <!-- ─── CURRENT RELEASE ─────────────────────────────────────── -->
     <div class="release">
       <div class="release-dot current"><div class="release-dot-inner"></div></div>
       <div class="release-card current-release">
         <div class="release-card-top">
           <div>
-            <div class="release-version">v1.2 — Current</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">CVE navigator · Field visibility · Persistent preferences · Smart refresh · Bug fixes</div>
+            <div class="release-version">v1.3 — Current</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Multiple fixes · EPSS score · ENISA source</div>
           </div>
           <div class="release-version-badges">
             <span class="release-tag tag-current">Current</span>
+            <span class="release-date">01/04/2026</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">💯</span><span class="change-text"><strong>EPSS score</strong> — Add the probability of an exploit under 30 days for concerned CVE.</span></li>
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Source ENISA EUVD</strong> — REST API search → Description, CVSS score &amp; vector, References</span></li> 
+
+            </ul>
+            <div class="change-group-label">Improvement</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🧩</span><span class="change-text">Multiples fixes (CVSSv4 duplication, debian references, CVElist CWE retrieval).</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── v1.2 ─────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot latest"><div class="release-dot-inner"></div></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v1.2</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">CVE navigator · Field visibility · Persistent preferences · Smart refresh · Bug fixes</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
             <span class="release-date">28/03/2026</span>
           </div>
         </div>
@@ -291,7 +322,7 @@
               <li class="change-item"><span class="change-icon">💾</span><span class="change-text"><strong>Persistent preferences</strong> — Sort and Source filter are now saved to <code>localStorage</code> and restored on every page load.</span></li>
               <li class="change-item"><span class="change-icon">📐</span><span class="change-text"><strong>Full-width cards</strong> — CVE cards now stretch to the full page.</span></li>
               <li class="change-item"><span class="change-icon">🖥️</span><span class="change-text">Correction of a few details in all documentation pages</span></li>
-              <li class="change-item"><span class="change-icon">📃</span><span class="change-text">Improvement of the CVElist retrieval, which now reads in a second field to retrieve data (containers.cna and containers.adp)</span></li> 
+              <li class="change-item"><span class="change-icon">📃</span><span class="change-text">Improvement of the CVElist retrieval, which now reads in a second field to retrieve data (containers.cna and containers.adp)</span></li>
             </ul>
           </div>
         </div>
@@ -466,10 +497,6 @@
                   <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improved CVSS vector normalisation — strips environmental/temporal metrics for clean deduplication across all new sources</span></li>
                 </ul>
             </div>
-          </div>
-          <div class="screenshots-area">
-            <div class="screenshots-label">Screenshot</div>
-            <img src="Screenshot/screenshot-v0.7.png" alt="Screenshot v0.7" class="screenshot-static" loading="lazy" style= width:70%>
           </div>
         </div>
       </div>
@@ -688,7 +715,6 @@
     <ul class="roadmap-list">
       <li class="roadmap-item"><span class="roadmap-icon">🔜</span>Export card data to JSON or CSV</li>
       <li class="roadmap-item"><span class="roadmap-icon">🔜</span>Additional sources</li>
-      <li class="roadmap-item"><span class="roadmap-icon">🔜</span>EPSS score integration (Exploit Prediction Scoring System)</li>
       <li class="roadmap-item"><span class="roadmap-icon">💡</span>Pull-request ideas welcome</li>
     </ul>
   </div>

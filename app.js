@@ -34,6 +34,7 @@ const SOURCE_CONFIG = [
   { name:"Oracle",      url: cve=>`https://www.oracle.com/security-alerts/alert-${cve.toLowerCase()}.html` },
   { name:"Xen",         url: _=>`https://xenbits.xen.org/xsa/xsa.json` },
   { name:"CISA",        url: cve=>`https://www.cisa.gov/known-exploited-vulnerabilities-catalog?search_api_fulltext=${cve}&field_date_added_wrapper=all&field_cve=&sort_by=field_date_added&items_per_page=20&url=` },
+  { name:"ENISA",       url: cve=>`https://euvd.enisa.europa.eu/vulnerability/${cve}` },
 ];
 
 // URL used as badge link in the description source column
@@ -51,6 +52,7 @@ const DESC_SOURCE_URLS = {
   Oracle:     cve=>`https://www.oracle.com/security-alerts/alert-${cve.toLowerCase()}.html`,
   Xen:        _=>`https://xenbits.xen.org/xsa/xsa.json`,
   CISA:       _=>`https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json`,
+  ENISA:      cve=>`https://euvdservices.enisa.europa.eu/api/enisaid?id=${encodeURIComponent(cve)}`,
 };
 
 const PROXY    = "__WORKER_PROXY__";
@@ -292,6 +294,8 @@ function sessionSave(cve, ctx, cvssBase) {
       oracleData:      ctx.oracleData      ?? null,
       xenData:         ctx.xenData         ?? null,
       cisaData:        ctx.cisaData        ?? null,
+      enisaData:       ctx.enisaData       ?? null,
+      epssData:        ctx.epssData        ?? null,
     },
     cvssBase,
     dotStatuses: statuses,
@@ -375,7 +379,7 @@ function detectCvssVersion(v) {
 function normalizeVector(version, raw) {
   if (!raw) return "";
   const v = String(raw).replace(/^CVSS:[^/]+\//i, "");
-  const l = {"v4.0":12,"v3.1":8,"v3.0":8,"v2.0":6}[version];
+  const l = {"v4.0":11,"v3.1":8,"v3.0":8,"v2.0":6}[version];
   return l ? v.split("/").slice(0, l).join("/") : v;
 }
 function pushCvss(list, version, data, source) {
@@ -414,14 +418,32 @@ function collectCweList(cveListData, nvdData, rhCsaf, suseCsaf, msrcVuln, cisaDa
   /** Extract CWE from cna or adp */
   function extractCwesFromContainer(container, source) {
     (container?.problemTypes || []).forEach(pt => (pt.descriptions || []).forEach(d => {
-      let cweId = d.cweId || null, cweName = null;
-      if (d.description) {
-        const m = String(d.description).match(/^(CWE-\d+)\s+([\s\S]+)/i);
-        if (m) { if (!cweId) cweId = m[1].toUpperCase(); cweName = m[2].trim(); }
-        else if (!/^CWE-\d+$/i.test(d.description.trim())) cweName = d.description;
+      // Case 1: explicit cweId field (clean, authoritative)
+      if (d.cweId) {
+        let cweName = null;
+        if (d.description) {
+          const m = String(d.description).match(/^CWE-\d+\s+([^\n]+)/i);
+          if (m) cweName = m[1].trim();
+          else if (!/^CWE-\d+$/i.test(d.description.trim())) cweName = d.description;
+        }
+        pushCwe(list, d.cweId, cweName, source);
+        return;
       }
-      if (!cweId && d.type === "text" && d.description) { const m2 = String(d.description).match(/\b(CWE-\d+)\b/i); if (m2) cweId = m2[1].toUpperCase(); }
-      if (cweId || (d.type === "CWE" && cweName)) pushCwe(list, cweId, cweName, source);
+      // Case 2: no cweId field — scan description for ALL CWE-NNNN patterns
+      if (!d.description) return;
+      const desc = String(d.description);
+      // Build a name map from "CWE-NNN Some Name" patterns (one per line or segment)
+      const nameMap = {};
+      for (const seg of desc.split(/[\n,;]+/)) {
+        const m = seg.trim().match(/^(CWE-\d+)\s+(.+)/i);
+        if (m) nameMap[m[1].toUpperCase()] = m[2].trim();
+      }
+      const allIds = [...desc.matchAll(/\b(CWE-\d+)\b/gi)];
+      if (allIds.length > 0) {
+        allIds.forEach(m => pushCwe(list, m[1].toUpperCase(), nameMap[m[1].toUpperCase()] ?? null, source));
+      } else if (d.type === "CWE") {
+        pushCwe(list, null, desc, source);
+      }
     }));
   }
 
@@ -473,7 +495,7 @@ function pushRef(list, url, source) {
   if (ex) { if (!ex.sources.includes(source)) ex.sources.push(source); }
   else list.push({ url: u, sources: [source] });
 }
-function collectRefs(cvl, nvd, rhC, suC, msV, ubRaw, cisaData, notAffectedSources = new Set(), excludedUrls = new Set()) {
+function collectRefs(cvl, nvd, rhC, suC, msV, ubRaw, cisaData, debianRefs, enisaRefs, notAffectedSources = new Set(), excludedUrls = new Set()) {
   const list = [], cna = cvl?.containers?.cna;
   const rhV = rhC?.document?.vulnerabilities?.[0] || rhC?.vulnerabilities?.[0];
   const suV = suC?.document?.vulnerabilities?.[0] || suC?.vulnerabilities?.[0];
@@ -485,6 +507,8 @@ function collectRefs(cvl, nvd, rhC, suC, msV, ubRaw, cisaData, notAffectedSource
   (suV?.references || []).forEach(r => pushRef(list, r.url, "SUSE"));
   (msV?.references || []).forEach(r => pushRef(list, r.url, "Microsoft"));
   (ubRaw?.references || []).forEach(r => { const u = typeof r === "string" ? r : r?.url; pushRef(list, u, "Ubuntu"); });
+  (debianRefs || []).forEach(u => pushRef(list, u, "Debian"));
+  (enisaRefs || []).forEach(u => pushRef(list, u, "ENISA"));
   if (cisaData?.notes) {
     const notes = cisaData.notes;
     (Array.isArray(notes) ? notes : [notes]).forEach(n => {
@@ -539,9 +563,9 @@ async function fetchSuseCsaf(cve) {
 }
 async function fetchDebianDescription(cve) {
   const r = await proxyFetchWithStatus(`https://security-tracker.debian.org/tracker/${encodeURIComponent(cve)}`, "text");
-  if (r.httpStatus === 0) return { desc: null, notAffected: null, networkError: true };
+  if (r.httpStatus === 0) return { desc: null, refs: [], notAffected: null, networkError: true };
   const html = r.data;
-  if (!html || r.httpStatus === 404) return { desc: null, notAffected: null, networkError: false };
+  if (!html || r.httpStatus === 404) return { desc: null, refs: [], notAffected: null, networkError: false };
   const notForUs = /NOT-FOR-US/i.test(html) || /RESERVED/i.test(html) && !/\bpackage\b/i.test(html);
   const hasAffected = /(vulnerable|open|unfixed)/i.test(html);
   const notAffected = notForUs || !hasAffected;
@@ -553,7 +577,24 @@ async function fetchDebianDescription(cve) {
       desc = normalizeText(tds[i+1].textContent) || null; break;
     }
   }
-  return { desc, notAffected, networkError: false };
+  // Refs: only from <pre> siblings that follow <h2>Notes</h2> (or <h3>)
+  const refs = [];
+  for (const h of doc.querySelectorAll("h2, h3")) {
+    if (/^notes?$/i.test(h.textContent.trim())) {
+      let sib = h.nextElementSibling;
+      while (sib && !/^H[123]$/.test(sib.tagName)) {
+        if (sib.tagName === "PRE") {
+          sib.querySelectorAll("a[href]").forEach(a => {
+            const u = a.getAttribute("href");
+            if (u && u.startsWith("http")) refs.push(u);
+          });
+        }
+        sib = sib.nextElementSibling;
+      }
+      break;
+    }
+  }
+  return { desc, refs, notAffected, networkError: false };
 }
 async function fetchUbuntuData(cve) {
   let data = await proxyFetch(`https://ubuntu.com/security/cves/${cve}.json`, "json");
@@ -941,8 +982,163 @@ async function fetchCisaData(cve) {
 }
 
 /* =================================================================
-   CSAF / LEGACY HELPERS
+   ENISA EUVD — European Union Vulnerability Database
+   API endpoint: euvdservices.enisa.europa.eu/api/enisaid?id={CVE-ID}
+   Returns a single entry object (or single-item array).
+   Chip link → euvd.enisa.europa.eu/vulnerability/{EUVD-ID}
    ================================================================= */
+async function fetchEnisaData(cve) {
+  const apiUrl = `https://euvdservices.enisa.europa.eu/api/enisaid?id=${encodeURIComponent(cve)}`;
+  const result = await proxyFetchWithStatus(apiUrl, "json");
+
+  if (result.httpStatus === 0)
+    return { desc: null, cvssList: [], refs: [], euvdId: null, euvdPageUrl: null, networkError: true, pageFound: false };
+  if (!result.data || result.httpStatus !== 200)
+    return { desc: null, cvssList: [], refs: [], euvdId: null, euvdPageUrl: null, networkError: false, pageFound: false };
+
+  // Response may be a bare object, a single-element array, or wrapped {data: ...}
+  const raw = result.data;
+  let entry = null;
+  if (Array.isArray(raw))              entry = raw[0] ?? null;
+  else if (raw?.data && typeof raw.data === "object") entry = Array.isArray(raw.data) ? raw.data[0] : raw.data;
+  else if (typeof raw === "object")    entry = raw;
+
+  // Bail if empty object with no useful fields
+  if (!entry) return { desc: null, cvssList: [], refs: [], euvdId: null, euvdPageUrl: null, networkError: false, pageFound: false };
+
+  const euvdId = entry.id || entry.euvdId || entry.euvd_id || entry.vulnerabilityId || null;
+  const euvdPageUrl = euvdId ? `https://euvd.enisa.europa.eu/vulnerability/${euvdId}` : null;
+
+  const desc = normalizeText(
+    entry.description || entry.summary || entry.title || entry.shortDescription || null
+  ) || null;
+
+  const rawScore  = entry.baseScore       ?? entry.cvssScore  ?? entry.cvssBaseScore ?? entry.score ?? null;
+  const rawVector = entry.baseScoreVector ?? entry.cvssVector ?? entry.vectorString  ?? entry.vector ?? null;
+  const rawVer    = entry.baseScoreVersion?? entry.cvssVersion?? entry.scoreVersion  ?? null;
+
+  const cvssList = [];
+  if (rawScore != null) {
+    const score = parseFloat(rawScore);
+    if (!isNaN(score) && score >= 0 && score <= 10) {
+      const ver = (rawVector ? detectCvssVersion(rawVector) : null)
+               || (rawVer    ? `v${String(rawVer).replace(/^v/i,"")}` : null);
+      if (ver) {
+        const normVec = rawVector ? (normalizeVector(ver, rawVector) || rawVector) : "";
+        // Push directly to avoid pushCvss bailing on empty vector
+        const ex = cvssList.find(c => c.version === ver && c.score === score && c.vector === normVec);
+        if (ex) { if (!ex.sources.includes("ENISA")) ex.sources.push("ENISA"); }
+        else     cvssList.push({ version: ver, score, vector: normVec, sources: ["ENISA"] });
+      }
+    }
+  }
+
+  let refs = [];
+  if (Array.isArray(entry.references)) {
+    refs = entry.references.map(r => (typeof r === "string" ? r : r?.url || "").trim()).filter(r => r.startsWith("http"));
+  } else if (typeof entry.references === "string") {
+    refs = entry.references.split(/[\n\s,]+/).map(r => r.trim()).filter(r => r.startsWith("http"));
+  }
+
+  const pageFound = !!(desc || cvssList.length || refs.length || euvdId);
+
+  return { desc, cvssList, refs, euvdId, euvdPageUrl, networkError: false, pageFound };
+}
+
+/* =================================================================
+   EPSS — Exploit Prediction Scoring System (FIRST.org)
+   ================================================================= */
+async function fetchEpssData(cve) {
+  const r = await proxyFetchWithStatus(`https://api.first.org/data/v1/epss?cve=${encodeURIComponent(cve)}`, "json");
+  if (r.httpStatus === 0) return { epss: null, date: null, networkError: true };
+  const entry = r.data?.data?.[0];
+  if (!entry) return { epss: null, date: null, networkError: false };
+  return {
+    epss:         entry.epss        ?? null,
+    date:         entry.date        ?? null,
+    networkError: false,
+  };
+}
+
+/* ── Danger colour scale: neutral → yellow → orange → red (t: 0→1) ──
+   Stores danger level as data-t on the element so theme changes can
+   reapply colours without re-fetching. */
+function _epssColorStyle(t) {
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  // Multi-stop hue interpolation (neutral blue-grey → yellow → orange → red)
+  const stops = [
+    [0.00, 220, 12],
+    [0.12,  60, 55],
+    [0.35,  30, 78],
+    [0.65,  10, 85],
+    [1.00,   0, 90],
+  ];
+  let lo = stops[0], hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (t <= stops[i + 1][0]) { lo = stops[i]; hi = stops[i + 1]; break; }
+  }
+  const u   = lo[0] === hi[0] ? 0 : (t - lo[0]) / (hi[0] - lo[0]);
+  const hue = Math.round(lo[1] + (hi[1] - lo[1]) * u);
+  const sat = Math.round(lo[2] + (hi[2] - lo[2]) * u);
+  const bgL = isDark ? Math.round(16 + t * 22)  : Math.round(96 - t * 44);
+  const txL = isDark ? Math.round(68 + t * 24)  : Math.round(28 - t * 8);
+  const brL = isDark ? Math.round(28 + t * 22)  : Math.round(76 - t * 28);
+  return {
+    background:   `hsl(${hue},${sat}%,${bgL}%)`,
+    color:        `hsl(${hue},${Math.min(sat + 15, 95)}%,${txL}%)`,
+    borderColor:  `hsl(${hue},${sat}%,${brL}%)`,
+    borderStyle:  "groove",
+    borderWidth:  "1px",
+  };
+}
+
+function _applyEpssBadgeStyle(el) {
+  const t = parseFloat(el.dataset.t ?? "0");
+  const s = _epssColorStyle(t);
+  el.style.background   = s.background;
+  el.style.color        = s.color;
+  el.style.borderColor  = s.borderColor;
+  el.style.borderStyle  = s.borderStyle;
+  el.style.borderWidth  = s.borderWidth;
+}
+
+/* Re-apply colours on all rendered EPSS badges (called on theme toggle) */
+function refreshAllEpssColors() {
+  document.querySelectorAll(".epss-badge[data-t]")
+    .forEach(el => _applyEpssBadgeStyle(el));
+}
+
+function renderEpssInCard(cve, epssData) {
+  const el = document.getElementById(`epss-${cve}`);
+  if (!el) return;
+  el.innerHTML = "";
+  if (!epssData || epssData.epss == null) return;
+  const epssScore  = parseFloat(epssData.epss);
+  if (isNaN(epssScore)) return;
+
+  const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "•";
+  el.appendChild(sep);
+
+  // EPSS badge — danger proportional to score itself (0→1)
+  const epssBadge = document.createElement("span");
+  epssBadge.className = "epss-badge";
+  epssBadge.dataset.t = String(epssScore);
+  epssBadge.title = "The probability that the vulnerability will be exploited in the next 30 days.";
+  const valueEl = document.createElement("span"); valueEl.className = "epss-value";
+  valueEl.textContent = (epssScore * 100).toFixed(2) + " %";
+  epssBadge.appendChild(valueEl);
+  _applyEpssBadgeStyle(epssBadge);
+  const link = document.createElement("a");
+  link.href = `https://api.first.org/data/v1/epss?cve=${encodeURIComponent(cve)}`;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.appendChild(epssBadge);
+  el.appendChild(link);
+}
+
+/* Watch for theme attribute changes to refresh EPSS badge colours */
+new MutationObserver(() => refreshAllEpssColors())
+  .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 function extractDescFromCsaf(csaf) {
   if (!csaf) return null;
   const vuln = csaf?.document?.vulnerabilities?.[0] || csaf?.vulnerabilities?.[0];
@@ -1031,7 +1227,7 @@ function createDescRow(sources, text) {
   row.appendChild(left); row.appendChild(right); return row;
 }
 function createCvssBadge({ version, score, vector, sources }) {
-  const ve = encodeURIComponent(vector);
+  const ve = encodeURIComponent(vector || "");
   const urlMap = {
     "v2.0": `https://nvd.nist.gov/vuln-metrics/cvss/v2-calculator?vector=${ve}&source=NIST`,
     "v3.0": `https://nvd.nist.gov/vuln-metrics/cvss/v3-calculator?vector=${ve}&version=3.0&source=NIST`,
@@ -1041,7 +1237,9 @@ function createCvssBadge({ version, score, vector, sources }) {
   const a = document.createElement("a"); a.className = `cvss-badge ${cvssColorClass(score)}`;
   a.dataset.sources = sources.join(",");
   a.dataset.cvssVersion = version;
-  a.href = urlMap[version] || "#"; a.target = "_blank"; a.title = `Vector: ${vector}`;
+  a.href = (vector ? urlMap[version] : null) || "#";
+  if (vector) { a.target = "_blank"; a.title = `Vector: ${vector}`; }
+  else        { a.title = `Score provided by ${sources.join(", ")} — no vector available`; }
   a.innerHTML = `<span class="version">CVSS ${esc(version)}</span><span class="score">${esc(String(score))}</span><span class="sources">${esc(sources.join(", "))}</span>`;
   return a;
 }
@@ -1126,6 +1324,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     rhOld: null, rhCsaf: null, suse:   null, debian: null,
     ubuntu: null, msrc:  null, amazon: null, lbo:    null,
     pg:    null, oracle: null, xen:    null, cisa:   null,
+    enisa: null, epss:  null,
   };
 
   const ctx = {};
@@ -1158,6 +1357,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     const oracleDesc  = ctx.oracleData?.desc || null;
     const xenDesc     = ctx.xenData?.desc || null;
     const cisaDesc    = ctx.cisaData?.desc || null;
+    const enisaDesc   = ctx.enisaData?.desc || null;
 
     if (cveListDesc) allDescItems.push({ name:"CVEList",     url:DESC_SOURCE_URLS.CVEList(cve),     text:cveListDesc });
     if (nvdDesc)     allDescItems.push({ name:"NVD",          url:DESC_SOURCE_URLS.NVD(cve),         text:nvdDesc });
@@ -1175,6 +1375,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     if (oracleDesc)  allDescItems.push({ name:"Oracle",        url:DESC_SOURCE_URLS.Oracle(cve),      text:oracleDesc });
     if (xenDesc)     allDescItems.push({ name:"Xen",           url:DESC_SOURCE_URLS.Xen(cve), text:xenDesc });
     if (cisaDesc)    allDescItems.push({ name:"CISA",         url:DESC_SOURCE_URLS.CISA(cve),        text:cisaDesc });
+    if (enisaDesc)   allDescItems.push({ name:"ENISA",        url:DESC_SOURCE_URLS.ENISA(cve),       text:enisaDesc });
 
     // Group — identical descriptions share one row, multiple source badges
     const groups = buildDescGroups(allDescItems);
@@ -1196,6 +1397,16 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     (ctx.amazonData?.cvssList   || []).forEach(c => pushCvss(cvssAll, c.version, { baseScore: c.score, vectorString: c.vector }, "Amazon"));
     (ctx.postgresData?.cvssList || []).forEach(c => pushCvss(cvssAll, c.version, { baseScore: c.score, vectorString: c.vector }, "PostgreSQL"));
     (ctx.oracleData?.cvssList   || []).forEach(c => pushCvss(cvssAll, c.version, { baseScore: c.score, vectorString: c.vector }, "Oracle"));
+    // ENISA: bypass pushCvss (which requires a non-empty vector) — merge directly
+    (ctx.enisaData?.cvssList || []).forEach(c => {
+      if (c.vector) {
+        pushCvss(cvssAll, c.version, { baseScore: c.score, vectorString: c.vector }, "ENISA");
+      } else {
+        const ex = cvssAll.find(x => x.version === c.version && x.score === c.score && x.vector === "");
+        if (ex) { if (!ex.sources.includes("ENISA")) ex.sources.push("ENISA"); }
+        else     cvssAll.push({ version: c.version, score: c.score, vector: "", sources: ["ENISA"] });
+      }
+    });
     sortCvss(cvssAll);
 
     const cvssEl = document.getElementById(`cvss-${cve}`);
@@ -1210,7 +1421,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
 
     // ── Refs ──
     const notAff = computeNotAffected(ctx);
-    const refs = collectRefs(ctx.cveListData, ctx.nvdData, ctx.rhCsaf, ctx.suseCsaf, ctx.msrcData?.vuln, ctx.ubuntuData?.rawData, ctx.cisaData, notAff, excludedUrls);
+    const refs = collectRefs(ctx.cveListData, ctx.nvdData, ctx.rhCsaf, ctx.suseCsaf, ctx.msrcData?.vuln, ctx.ubuntuData?.rawData, ctx.cisaData, ctx.debianData?.refs, ctx.enisaData?.refs, notAff, excludedUrls);
     renderRefsBody(refsBody, refsCountEl, refs);
 
     applyFilter();
@@ -1278,6 +1489,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
       const el = document.createElement("a"); el.className = "assigner"; el.href = `https://www.cve.org/CVERecord?id=${cve}`; el.target = "_blank"; el.textContent = assigner || "unknown"; metaRow.appendChild(el);
     } else { const el = document.createElement("span"); el.className = "assigner unknown"; el.textContent = "UNKNOWN"; metaRow.appendChild(el); }
     if (dateStr) { const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "•"; metaRow.appendChild(sep); const de = document.createElement("span"); de.className = "date"; de.textContent = dateStr; metaRow.appendChild(de); }
+    const epssPlaceholder = document.createElement("span"); epssPlaceholder.id = `epss-${cve}`; metaRow.appendChild(epssPlaceholder);
     metaLeft.appendChild(metaRow);
     const titleEl = document.createElement("div"); titleEl.className = "cve-title"; titleEl.textContent = cve; metaLeft.appendChild(titleEl);
     cardTop.appendChild(metaLeft);
@@ -1323,7 +1535,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     // References
     const { details: refsDetails, countEl, spinnerEl, body: rb } = createLiveRefsDetails();
     refsBody = rb; refsCountEl = countEl; refsSpinnerEl = spinnerEl;
-    const initRefs = collectRefs(cveListData, ctx.nvdData, null, null, null, null, null, new Set(), excludedUrls);
+    const initRefs = collectRefs(cveListData, ctx.nvdData, null, null, null, null, null, null, null, new Set(), excludedUrls);
     renderRefsBody(refsBody, refsCountEl, initRefs);
     card.appendChild(refsDetails);
 
@@ -1351,6 +1563,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
         const url    = cachedData.dotUrls?.[s.name];
         setDot(s.name, status, url || undefined);
       });
+      renderEpssInCard(cve, ctx.epssData);
       refsSpinnerEl.style.display = "none";
       return;
     }
@@ -1369,6 +1582,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     fp.oracle = fetchOracleData(cve);
     fp.xen    = fetchXenData(cve);
     fp.cisa   = fetchCisaData(cve);
+    fp.enisa  = fetchEnisaData(cve);
 
     // RedHat
     let rhPending = 2;
@@ -1487,7 +1701,21 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
       else                               setDot("CISA", "fail");
     }).catch(() => { ctx.cisaData = null; setDot("CISA", "networkerror"); });
 
-    Promise.allSettled([fp.rhOld, fp.rhCsaf, fp.suse, fp.debian, fp.ubuntu, fp.msrc, fp.amazon, fp.lbo, fp.pg, fp.oracle, fp.xen, fp.cisa])
+    fp.enisa.then(d => {
+      ctx.enisaData = d ?? null;
+      // Exclude the EUVD page URL from refs (already surfaced via dot badge)
+      if (ctx.enisaData?.euvdPageUrl) excludedUrls.add(ctx.enisaData.euvdPageUrl);
+      refreshCard();
+      if (ctx.enisaData?.networkError)    setDot("ENISA", "networkerror");
+      else if (ctx.enisaData?.pageFound)  setDot("ENISA", "ok", ctx.enisaData.euvdPageUrl);
+      else                                setDot("ENISA", "fail");
+    }).catch(() => { ctx.enisaData = null; setDot("ENISA", "networkerror"); });
+
+    fp.epss = fetchEpssData(cve);
+    fp.epss.then(d => { ctx.epssData = d ?? null; renderEpssInCard(cve, ctx.epssData); })
+            .catch(() => { ctx.epssData = null; });
+
+    Promise.allSettled([fp.rhOld, fp.rhCsaf, fp.suse, fp.debian, fp.ubuntu, fp.msrc, fp.amazon, fp.lbo, fp.pg, fp.oracle, fp.xen, fp.cisa, fp.enisa, fp.epss])
       .then(() => { refsSpinnerEl.style.display = "none"; sessionSave(cve, ctx, cvssBase); });
 
   } catch (err) {
@@ -1499,7 +1727,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
 /* =================================================================
    SOURCE FILTER
    ================================================================= */
-const ALL_SOURCES    = ["NVD","CVEList","RedHat","SUSE","Debian","Ubuntu","Microsoft","Amazon","LibreOffice","PostgreSQL","Oracle","Xen","CISA"];
+const ALL_SOURCES    = ["NVD","CVEList","RedHat","SUSE","Debian","Ubuntu","Microsoft","Amazon","LibreOffice","PostgreSQL","Oracle","Xen","CISA","ENISA"];
 const LOCKED_SOURCES = new Set(["NVD","CVEList"]);
 const activeSources  = new Set(ALL_SOURCES);
 
@@ -1988,6 +2216,14 @@ async function runSourceFetch(srcName, cve, stored) {
         if (ctx.cisaData?.networkError) setDot("CISA","networkerror");
         else if (ctx.cisaData?.pageFound) setDot("CISA","ok");
         else setDot("CISA","fail"); break;
+      }
+      case "ENISA": {
+        setDot("ENISA","wait"); const d=await fetchEnisaData(cve); ctx.enisaData=d??null;
+        if (ctx.enisaData?.euvdPageUrl) excludedUrls.add(ctx.enisaData.euvdPageUrl);
+        refreshCard();
+        if (ctx.enisaData?.networkError)   setDot("ENISA","networkerror");
+        else if (ctx.enisaData?.pageFound) setDot("ENISA","ok",ctx.enisaData.euvdPageUrl);
+        else                               setDot("ENISA","fail"); break;
       }
     }
   } catch { setDot(srcName,"networkerror"); }

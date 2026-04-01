@@ -2,7 +2,7 @@
 
 > A client-side, zero-dependency web application that aggregates CVE vulnerability data in real time from multiple official sources — no installation required / no account required.
 
-![Version](https://img.shields.io/badge/version-v1.2-blue)
+![Version](https://img.shields.io/badge/version-v1.3-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 
@@ -24,6 +24,7 @@ Everything runs **100% client-side** — no backend, no installation, no data se
 - **CVSS score aggregation** — Scores from all sources are collected, deduplicated by `(version, score, vector)`, and displayed as colour-coded badges (None / Low / Medium / High / Critical). Each badge links to the NIST CVSS calculator with the vector pre-filled.
 - **CVSS v2.0, v3.0, v3.1 and v4.0 support**
 - **CWE chips** — CWE identifiers are displayed as clickable chips linking to the MITRE CWE database.
+- **EPSS badge** — EPSS score is displayed and indicates the percent probability of an exploit under 30 days.
 - **Source status dots** — Each source shows a real-time coloured indicator (grey → loading, green → confirmed, red → not found, orange → not affected, black/white → network error).
 - **Progressive loading** — Skeleton cards are rendered immediately while data loads in the background.
 - **CVE navigator** — A compact dropdown in the search bar lists all active CVE cards with their CVSS severity colour; clicking one scrolls and highlights the target card.
@@ -54,6 +55,7 @@ Everything runs **100% client-side** — no backend, no installation, no data se
 | **Oracle** | Security alerts | Advisory description |
 | **CISA** | Known Exploited Vulnerabilities | Description, CWes and references |
 | **Xen** | Security advisories | Advisory description |
+| **ENISA** | EUVD advisories | Description, CVSS score, references |
 
 
 ---

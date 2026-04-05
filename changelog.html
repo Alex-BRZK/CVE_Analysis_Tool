@@ -264,17 +264,48 @@
 
   <div class="timeline">
 
-   <!-- ─── CURRENT RELEASE ─────────────────────────────────────── -->
+    <!-- ─── CURRENT RELEASE ─────────────────────────────────────── -->
     <div class="release">
       <div class="release-dot current"><div class="release-dot-inner"></div></div>
       <div class="release-card current-release">
         <div class="release-card-top">
           <div>
-            <div class="release-version">v1.3 — Current</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Multiple fixes · EPSS score · ENISA source</div>
+            <div class="release-version">v1.4 — Current</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Shareable permalink · Source chip collapse · Filter groups</div>
           </div>
           <div class="release-version-badges">
             <span class="release-tag tag-current">Current</span>
+            <span class="release-date">05/04/2026</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🔗</span><span class="change-text"><strong>Shareable permalink</strong> — A share button (🔗) next to each CVE title copies a direct URL (<code>?cves=CVE-XXXX-XXXXX</code>) to the clipboard. Opening that URL loads the CVE instantly, bypassing the session cache restore.</span></li>
+              <li class="change-item"><span class="change-icon">🗂️</span><span class="change-text"><strong>Source filter groups</strong> — The "Visible sources" panel is now split into two sub-groups: <strong>Databases</strong> (CVEList, NVD, ENISA) and <strong>Editors</strong> (all vendor sources). All sources are now fully toggleable.</span></li>
+            </ul>
+            <div class="change-group-label">Improvement</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🔵</span><span class="change-text"><strong>Source chip collapse</strong> — Source chips that did not respond (red, amber, or network error) are automatically hidden behind a compact <code>+N ▾</code> toggle button. Only green (confirmed) sources remain visible by default, reducing visual clutter on cards with many sources.</span></li>
+              <li class="change-item"><span class="change-icon">↕️</span><span class="change-text"><strong>Description column alignment</strong> — Source badges in the left column and description text in the right column are now vertically centered relative to each other, regardless of row height.</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── v1.3 ─────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot latest"><div class="release-dot-inner"></div></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v1.3</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Multiple fixes · EPSS score · ENISA source</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
             <span class="release-date">01/04/2026</span>
           </div>
         </div>
@@ -283,18 +314,16 @@
             <div class="change-group-label">Added</div>
             <ul class="change-list">
               <li class="change-item"><span class="change-icon">💯</span><span class="change-text"><strong>EPSS score</strong> — Add the probability of an exploit under 30 days for concerned CVE.</span></li>
-              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Source ENISA EUVD</strong> — REST API search → Description, CVSS score &amp; vector, References</span></li> 
-
+              <li class="change-item"><span class="change-icon">📦</span><span class="change-text"><strong>Source ENISA EUVD</strong> — REST API search → Description, CVSS score &amp; vector, References</span></li>
             </ul>
             <div class="change-group-label">Improvement</div>
             <ul class="change-list">
-              <li class="change-item"><span class="change-icon">🧩</span><span class="change-text">Multiples fixes (CVSSv4 duplication, debian references, CVElist CWE retrieval).</span></li>
+              <li class="change-item"><span class="change-icon">🧩</span><span class="change-text">Multiple fixes (CVSSv4 duplication, Debian references, CVEList CWE retrieval).</span></li>
             </ul>
           </div>
         </div>
       </div>
     </div>
-
     <!-- ─── v1.2 ─────────────────────────────────────── -->
     <div class="release">
       <div class="release-dot latest"><div class="release-dot-inner"></div></div>

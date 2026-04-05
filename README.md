@@ -2,7 +2,7 @@
 
 > A client-side, zero-dependency web application that aggregates CVE vulnerability data in real time from multiple official sources — no installation required / no account required.
 
-![Version](https://img.shields.io/badge/version-v1.3-blue)
+![Version](https://img.shields.io/badge/version-v1.4-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 
@@ -19,6 +19,7 @@ Everything runs **100% client-side** — no backend, no installation, no data se
 ## ✨ Features
 
 - **Multi-CVE search** — Paste any block of text containing CVE identifiers; a regex automatically extracts all valid IDs and deduplicates them.
+- **Shareable permalink** — A share button next to each CVE title copies a direct URL (`?cves=CVE-XXXX-XXXXX`) to the clipboard; opening that link loads the CVE instantly without any manual input.
 - **Parallel data fetching** — All sources are queried simultaneously to minimize load time.
 - **Description deduplication** — Identical descriptions from multiple sources are merged into a single row with all source badges listed.
 - **CVSS score aggregation** — Scores from all sources are collected, deduplicated by `(version, score, vector)`, and displayed as colour-coded badges (None / Low / Medium / High / Critical). Each badge links to the NIST CVSS calculator with the vector pre-filled.
@@ -28,7 +29,7 @@ Everything runs **100% client-side** — no backend, no installation, no data se
 - **Source status dots** — Each source shows a real-time coloured indicator (grey → loading, green → confirmed, red → not found, orange → not affected, black/white → network error).
 - **Progressive loading** — Skeleton cards are rendered immediately while data loads in the background.
 - **CVE navigator** — A compact dropdown in the search bar lists all active CVE cards with their CVSS severity colour; clicking one scrolls and highlights the target card.
-- **Source filtering** — Toggle individual sources on/off; preference is persisted in `localStorage`.
+- **Source filtering** — Toggle individual sources on/off, organised into two groups — **Databases** (CVEList, NVD, ENISA) and **Editors** (vendor sources); all sources are freely toggleable. Preference is persisted in `localStorage`.
 - **Field visibility** — Hide or show individual card sections (Description, CVSS v2/v3/v4, CWE, References) from the Options panel; preference is persisted in `localStorage`.
 - **Sort** — Sort cards by CVSS score, publication date, or CVE ID; preference is persisted in `localStorage`.
 - **Smart refresh** — The per-card ↻ button re-queries only failed/errored sources, including a silent retry of CVEList for reserved-but-unpublished CVEs.

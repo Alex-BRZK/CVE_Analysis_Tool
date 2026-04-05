@@ -128,6 +128,12 @@ function toggleTheme() {
    TEXT UTILITIES
    ================================================================= */
 function extractCveIds(s) { return [...new Set((s.match(/CVE-\d{4}-\d{4,7}/gi) || []).map(c => c.toUpperCase()))]; }
+
+/* Build a shareable URL containing the given CVE IDs as a query string */
+function buildPermalink(cves) {
+  const base = `${location.origin}${location.pathname}`;
+  return `${base}?cves=${[...cves].join(",")}`;
+}
 function esc(s) { return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function normalizeText(s) {
   if (!s) return null;
@@ -1123,7 +1129,7 @@ function renderEpssInCard(cve, epssData) {
   const epssBadge = document.createElement("span");
   epssBadge.className = "epss-badge";
   epssBadge.dataset.t = String(epssScore);
-  epssBadge.title = "The probability that the vulnerability will be exploited in the next 30 days.";
+  epssBadge.title = "EPSS Score : The probability that the vulnerability will be exploited in the next 30 days.";
   const valueEl = document.createElement("span"); valueEl.className = "epss-value";
   valueEl.textContent = (epssScore * 100).toFixed(2) + " %";
   epssBadge.appendChild(valueEl);
@@ -1337,6 +1343,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     const dot = chip?.querySelector(".dot");
     if (dot) dot.className = `dot dot-${status}`;
     if (href && chip) chip.href = href;
+        rebuildChipVisibility(cve);
   }
 
   // Rebuild all card sections from current ctx state
@@ -1491,7 +1498,23 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     if (dateStr) { const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "•"; metaRow.appendChild(sep); const de = document.createElement("span"); de.className = "date"; de.textContent = dateStr; metaRow.appendChild(de); }
     const epssPlaceholder = document.createElement("span"); epssPlaceholder.id = `epss-${cve}`; metaRow.appendChild(epssPlaceholder);
     metaLeft.appendChild(metaRow);
-    const titleEl = document.createElement("div"); titleEl.className = "cve-title"; titleEl.textContent = cve; metaLeft.appendChild(titleEl);
+    const titleRow = document.createElement("div"); titleRow.className = "cve-title-row";
+    const titleEl = document.createElement("div"); titleEl.className = "cve-title"; titleEl.textContent = cve;
+    const shareBtn = document.createElement("button"); shareBtn.className = "card-action-btn card-share-btn"; shareBtn.type = "button"; shareBtn.title = "Copy shareable link";
+    shareBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`;
+    shareBtn.addEventListener("click", () => {
+      const url = buildPermalink([cve]);
+      navigator.clipboard.writeText(url).catch(() => {
+        const ta = document.createElement("textarea"); ta.value = url;
+        ta.style.cssText = "position:fixed;opacity:0"; document.body.appendChild(ta);
+        ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+      });
+      shareBtn.classList.add("copied");
+      shareBtn.title = "Copied!";
+      setTimeout(() => { shareBtn.classList.remove("copied"); shareBtn.title = "Copy shareable link"; }, 1800);
+    });
+    titleRow.appendChild(titleEl); titleRow.appendChild(shareBtn);
+    metaLeft.appendChild(titleRow);
     cardTop.appendChild(metaLeft);
 
     const topRight = document.createElement("div"); topRight.className = "card-top-right";
@@ -1727,46 +1750,85 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
 /* =================================================================
    SOURCE FILTER
    ================================================================= */
-const ALL_SOURCES    = ["NVD","CVEList","RedHat","SUSE","Debian","Ubuntu","Microsoft","Amazon","LibreOffice","PostgreSQL","Oracle","Xen","CISA","ENISA"];
-const LOCKED_SOURCES = new Set(["NVD","CVEList"]);
+const SOURCE_GROUPS = {
+  databases: ["CVEList","NVD","ENISA"],
+  editors:   ["RedHat","SUSE","Debian","Ubuntu","Microsoft","Amazon","LibreOffice","PostgreSQL","Oracle","Xen","CISA"],
+};
+const ALL_SOURCES   = [...SOURCE_GROUPS.databases, ...SOURCE_GROUPS.editors];
+const LOCKED_SOURCES = new Set(); // all sources are toggleable
 const activeSources  = new Set(ALL_SOURCES);
 
 function applyFilter() {
   document.querySelectorAll(".desc-row[data-sources]").forEach(row => {
     const srcs = row.dataset.sources.split(",");
-    const vis  = srcs.filter(s => LOCKED_SOURCES.has(s) || activeSources.has(s));
+    const vis  = srcs.filter(s => activeSources.has(s));
     row.style.display = vis.length ? "" : "none";
     row.querySelectorAll(".source-badge").forEach(b => {
       const n = b.textContent.trim();
-      b.style.display = (!n || n === "?" || LOCKED_SOURCES.has(n) || activeSources.has(n)) ? "" : "none";
+      b.style.display = (!n || n === "?" || activeSources.has(n)) ? "" : "none";
     });
   });
   document.querySelectorAll(".cvss-badge[data-sources]").forEach(badge => {
     const srcs = badge.dataset.sources.split(",");
-    const vis  = srcs.filter(s => LOCKED_SOURCES.has(s) || activeSources.has(s));
+    const vis  = srcs.filter(s => activeSources.has(s));
     badge.style.display = vis.length ? "" : "none";
     const span = badge.querySelector(".sources"); if (span) span.textContent = vis.join(", ");
   });
   document.querySelectorAll(".ref-row[data-sources]").forEach(row => {
     const srcs = row.dataset.sources.split(",");
-    const vis  = srcs.some(s => LOCKED_SOURCES.has(s) || activeSources.has(s));
+    const vis  = srcs.some(s => activeSources.has(s));
     row.style.display = vis ? "" : "none";
     row.querySelectorAll(".source-badge").forEach(b => {
       const n = b.textContent.trim();
-      b.style.display = (!n || LOCKED_SOURCES.has(n) || activeSources.has(n)) ? "" : "none";
+      b.style.display = (!n || activeSources.has(n)) ? "" : "none";
     });
   });
   document.querySelectorAll(".cwe-chip[data-sources]").forEach(chip => {
     const srcs = chip.dataset.sources.split(",");
-    const vis  = srcs.filter(s => LOCKED_SOURCES.has(s) || activeSources.has(s));
+    const vis  = srcs.filter(s => activeSources.has(s));
     chip.style.display = vis.length ? "" : "none";
     const srEl = chip.querySelector(".cwe-chip-srcs"); if (srEl) srEl.textContent = vis.length ? ` (${vis.join(", ")})` : "";
   });
-  // Hide/show source chips (status dots in card header)
+  // Source chips — consider both filter state and collapse state
   document.querySelectorAll(".source-chip[data-source]").forEach(chip => {
-    const src = chip.dataset.source;
-    chip.style.display = (LOCKED_SOURCES.has(src) || activeSources.has(src)) ? "" : "none";
+    const src    = chip.dataset.source;
+    const active = activeSources.has(src);
+    chip.dataset.filtered = active ? "false" : "true";
+    const collapsed = chip.dataset.collapsed === "true";
+    const expanded  = chip.closest(".card-chips-right")?.classList.contains("chips-expanded");
+    chip.style.display = (!active || (collapsed && !expanded)) ? "none" : "";
   });
+}
+
+/* Collapse non-ok source chips behind a "+N ▾" toggle button */
+function rebuildChipVisibility(cve) {
+  const chipsRight = document.querySelector(`.cve-card[data-cve="${cve}"] .card-chips-right`);
+  if (!chipsRight) return;
+  const expanded = chipsRight.classList.contains("chips-expanded");
+  let collapsedCount = 0;
+  chipsRight.querySelectorAll(".source-chip").forEach(chip => {
+    const dot = chip.querySelector(".dot");
+    const cls = dot ? Array.from(dot.classList).find(c => c.startsWith("dot-") && c !== "dot") : null;
+    const settled = cls && cls !== "dot-wait" && cls !== "dot-unknown";
+    const collapse = settled && cls !== "dot-ok";
+    chip.dataset.collapsed = collapse ? "true" : "false";
+    if (collapse) collapsedCount++;
+    const filtered = chip.dataset.filtered === "true";
+    chip.style.display = (filtered || (collapse && !expanded)) ? "none" : "";
+  });
+  let moreBtn = chipsRight.querySelector(".chips-more");
+  if (collapsedCount === 0) { moreBtn?.remove(); return; }
+  if (!moreBtn) {
+    moreBtn = document.createElement("button");
+    moreBtn.className = "chips-more"; moreBtn.type = "button";
+    moreBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      chipsRight.classList.toggle("chips-expanded");
+      rebuildChipVisibility(cve);
+    });
+    chipsRight.appendChild(moreBtn);
+  }
+  moreBtn.textContent = expanded ? "▴" : `+${collapsedCount} ▾`;
 }
 
 function toggleOptionsPanel() {
@@ -1853,34 +1915,35 @@ function _saveFilterState() {
   localStorage.setItem("cat_filters", JSON.stringify([...activeSources]));
 }
 function initFilterChips() {
-  const container = document.getElementById("filterChips"); if (!container) return;
-  // Restore visibles sources from localStorage
+  const dbContainer = document.getElementById("filterChipsDatabases");
+  const edContainer = document.getElementById("filterChipsEditors");
+  if (!dbContainer || !edContainer) return;
   try {
     const saved = localStorage.getItem("cat_filters");
     if (saved) {
       const savedArr = JSON.parse(saved);
       activeSources.clear();
       savedArr.forEach(s => { if (ALL_SOURCES.includes(s)) activeSources.add(s); });
-      LOCKED_SOURCES.forEach(s => activeSources.add(s)); // toujours actives
     }
   } catch {}
-  ALL_SOURCES.forEach(src => {
+
+  function renderChip(src, container) {
     const chip = document.createElement("span");
-    const isOn = LOCKED_SOURCES.has(src) || activeSources.has(src);
-    chip.className = "filter-chip" + (LOCKED_SOURCES.has(src) ? " locked" : isOn ? " on" : "");
+    chip.className = "filter-chip" + (activeSources.has(src) ? " on" : "");
     chip.dataset.src = src;
     const dot = document.createElement("span"); dot.className = "fc-dot";
     chip.appendChild(dot); chip.appendChild(document.createTextNode(src));
-    if (!LOCKED_SOURCES.has(src)) {
-      chip.addEventListener("click", () => {
-        if (activeSources.has(src)) { activeSources.delete(src); chip.classList.remove("on"); }
-        else { activeSources.add(src); chip.classList.add("on"); }
-        _saveFilterState();
-        applyFilter();
-      });
-    }
+    chip.addEventListener("click", () => {
+      if (activeSources.has(src)) { activeSources.delete(src); chip.classList.remove("on"); }
+      else { activeSources.add(src); chip.classList.add("on"); }
+      _saveFilterState();
+      applyFilter();
+    });
     container.appendChild(chip);
-  });
+  }
+
+  SOURCE_GROUPS.databases.forEach(src => renderChip(src, dbContainer));
+  SOURCE_GROUPS.editors.forEach(src => renderChip(src, edContainer));
 }
 
 /* =================================================================
@@ -1996,6 +2059,25 @@ document.addEventListener("DOMContentLoaded", () => {
     _currentSort = savedSort;
     const sortSel = document.getElementById("sortSelect");
     if (sortSel) sortSel.value = savedSort;
+  }
+
+  // Parse ?cves= from URL and queue them for loading
+  const urlCves = extractCveIds(new URLSearchParams(location.search).get("cves") || "");
+  if (urlCves.length) {
+    // Clean the URL without reloading the page
+    history.replaceState(null, "", location.pathname);
+    (async () => {
+      for (let i = 0; i < urlCves.length; i++) {
+        const cve = urlCves[i];
+        if (displayedCVEs.has(cve)) continue;
+        displayedCVEs.add(cve);
+        await renderCve(cve);
+        if (i < urlCves.length - 1) await wait(DELAY_MS);
+      }
+      updateClearSection(); refreshSummary();
+      if (_currentSort !== "none") applySort();
+    })();
+    return; // skip the localStorage restore to avoid duplicate cards on first load
   }
 
   const saved = storageGetCves();

@@ -306,6 +306,7 @@ code {
       <li class="toc-item"><a class="toc-link sub" href="#batch">Batch search</a></li>
       <li class="toc-item"><a class="toc-link" href="#card">Understanding a CVE card</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#card-header">Header &amp; metadata</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#permalink">Shareable permalink</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#source-dots">Source status dots</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#descriptions">Descriptions</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#cvss">CVSS scores</a></li>
@@ -468,6 +469,13 @@ code {
         of the CVE entry.
       </p>
       <p class="doc-p">
+        A small <strong>share button</strong> (🔗) sits immediately to the right of the CVE ID. Clicking it
+        copies a direct permalink to the clipboard — for example
+        <code>https://alex-brzk.github.io/CVE_Analysis_Tool/?cves=CVE-2024-12345</code>.
+        Opening that URL in any browser loads the card instantly. The button turns green briefly
+        to confirm the copy.
+      </p>
+      <p class="doc-p">
         If a CVE is not yet in the CVEList repository (GitHub CVEProject/cvelistV5), the card will show an
         <strong>orange "Not in CVEList" label</strong> and a left-side orange border. This is common for
         very recently reserved CVEs that haven't been assigned a description yet.
@@ -507,6 +515,12 @@ code {
       </div>
       <p class="doc-p">
         Clicking any source pill navigates to the source's advisory or detail page for that CVE in a new tab.
+      </p>
+      <p class="doc-p">
+        Once a source has settled to a non-green state (red, amber, or network error), its pill is
+        <strong>automatically collapsed</strong> and hidden from the main chip row. A compact
+        <code>+N ▾</code> button appears at the end of the row — clicking it expands all hidden chips.
+        This keeps the header readable when most niche sources do not cover a given CVE.
       </p>
       <div class="callout callout-warn">
         <span class="callout-icon">⚠️</span>
@@ -635,10 +649,9 @@ code {
       <p class="doc-p">
         The <em>Visible sources</em> section lets you enable or disable individual sources. When a source is disabled, all content attributed exclusively to it is hidden — its description row, CVSS badges, CWE chips, and reference links — unless another active source shares the same information.
       </p>
-      <div class="callout callout-info">
-        <span class="callout-icon">ℹ️</span>
-        <span><strong>NVD</strong> and <strong>CVEList</strong> are always visible and cannot be disabled — they form the baseline. All other sources can be freely toggled. This preference is persisted in <code>localStorage</code>.</span>
-      </div>
+      <p class="doc-p">
+        Sources are organised into two sub-groups: <strong>Databases</strong> (CVEList, NVD, ENISA) and <strong>Editors</strong> (all vendor sources). All sources — including CVEList and NVD — are freely toggleable. Preferences are persisted in <code>localStorage</code>.
+      </p>
 
       <h3 class="section-subtitle" id="sort">Sort</h3>
       <p class="doc-p">

@@ -209,6 +209,9 @@ pre .c { color: var(--text-muted); }            /* comment */
       <li class="toc-item"><a class="toc-link sub" href="#localstorage-keys">localStorage keys</a></li>
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#ui">UI architecture</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#ui-permalink">Shareable permalink</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#ui-chip-collapse">Source chip collapse</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#ui-filter-groups">Filter groups</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#ui-navigator">CVE navigator</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#ui-fields">Field visibility</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#ui-refresh">Smart refresh</a></li>
@@ -483,7 +486,7 @@ pre .c { color: var(--text-muted); }            /* comment */
         <p class="doc-p" style="margin-bottom:0">
           <strong>Dot logic:</strong> Green if any of the three sources returns data. Black/white (network error) only if both CSAF and SUG API return HTTP 0. Red otherwise.
         </p>
-        <div class="callout callout-warn">
+          <div class="callout callout-warn">
           <span class="callout-icon">⚠️</span>
           <span>
             I noticed a discrepancy between these sources: Page, CSAF, Sug or CIRCL. 
@@ -797,20 +800,48 @@ pre .c { color: var(--text-muted); }            /* comment */
       <div class="section-eyebrow">Interface</div>
       <h2 class="section-title">UI architecture</h2>
 
+      <h3 class="section-subtitle" id="ui-permalink">Shareable permalink</h3>
+      <p class="doc-p">
+        Each CVE card exposes a share button (🔗) inline with the CVE title. Clicking it constructs a URL of the form
+        <code>index.html?cves=CVE-XXXX-XXXXX</code> (comma-separated for multiple IDs) and writes it
+        to the clipboard via the Clipboard API.
+      </p>
+      <p class="doc-p">
+        When CVEs come from the URL, the <code>localStorage</code> restore
+        is skipped to prevent duplicate cards.
+      </p>
+
+      <h3 class="section-subtitle" id="ui-chip-collapse">Source chip collapse</h3>
+      <p class="doc-p">
+        A chip whose dot has settled to a non-ok state
+        (<code>dot-fail</code>, <code>dot-notaffected</code>, <code>dot-networkerror</code>) receives
+        <code>data-collapsed="true"</code> and is hidden. A button showing
+        <code>+N ▾</code> is injected at the end of the row; clicking it toggles the
+        <code>chips-expanded</code>
+        to show or hide the collapsed chips.
+      </p>
+
+      <h3 class="section-subtitle" id="ui-filter-groups">Source filter groups</h3>
+      <p class="doc-p">
+        The "Visible sources" panel is divided into two sub-groups:
+        <strong>Databases</strong> (CVEList, NVD, ENISA) and <strong>Editors</strong> (all vendor sources).
+        All sources are fully toggleable.
+      </p>
+
       <h3 class="section-subtitle" id="ui-navigator">CVE navigator</h3>
       <p class="doc-p">
         The navigator is a dropdown widget embedded directly to the left of the search form.
-        Each CVE in the list carries a coloured corresponding of the max CVSS score. The list is rebuilt every time after a card is added, deleted, or sorted.
+        Each CVE in the list carries a colour corresponding to its max CVSS score. The list is rebuilt every time a card is added, deleted, or sorted.
       </p>
 
       <h3 class="section-subtitle" id="ui-fields">Field visibility</h3>
       <p class="doc-p">
-        Field visibility is implemented entirely in CSS via body-level classes. When a field is disabled, it masks this section on all cards simultaneously—no manipulation of individual cards is required.
+        Field visibility is implemented entirely in CSS via body-level classes. When a field is disabled, it masks this section on all cards simultaneously — no manipulation of individual cards is required.
       </p>
 
       <h3 class="section-subtitle" id="ui-refresh">Smart refresh</h3>
       <p class="doc-p">
-        The ↻ refresh button calls allows refreshing the data for all sources that failed <code>dot-fail</code> (red) or did not respond <code>dot-networkerror</code> (black/white), by making requests again. A sessionSave call at the end persists the refreshed state to cache.
+        The ↻ refresh button re-queries all sources that returned <code>dot-fail</code> (red) or <code>dot-networkerror</code> (black/white). A <code>sessionSave</code> call at the end persists the refreshed state to cache.
       </p>
     </section>
 

@@ -1,0 +1,35 @@
+name: Update CWE database
+
+on:
+  schedule:
+    - cron: '0 1 1 * *'  # 1st of each month at 01:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-cwe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download & extract latest CWE catalog
+        run: |
+          curl -sSL https://cwe.mitre.org/data/xml/cwec_latest.xml.zip -o data/cwec_latest.zip
+          unzip -o data/cwec_latest.zip -d data/cwe_tmp
+          mv data/cwe_tmp/cwec_*.xml ./data/cwec_latest.xml
+          rm -rf data/cwe_tmp data/cwec_latest.zip
+
+      - name: Generate cwe.js
+        run: python data/generate_cwe_js.py data/cwec_latest.xml --out data/cwe.js
+
+      - name: Clean up XML
+        run: rm -f data/cwec_latest.xml
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions"
+          git add data/cwe.js
+          git diff --cached --quiet || git commit -m "Auto-update: CWE database"
+          git push

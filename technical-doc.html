@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Technical Documentation — CVE Analysis Tool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css">
 <script>(function(){document.documentElement.setAttribute("data-theme",localStorage.getItem("theme")||"light")})();</script>
 <style>
@@ -178,6 +178,10 @@ pre .c { color: var(--text-muted); }            /* comment */
       <li class="toc-item"><a class="toc-link" href="#architecture">Architecture overview</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#proxy">CORS proxy</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#fetch-flow">Fetch flow</a></li>
+      <li class="toc-item"><a class="toc-link" href="#landing-curtain">Landing curtain</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#curtain-feeds">Data feeds</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#curtain-cache">Session cache</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#curtain-carousel">Carousel rendering</a></li>
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#sources">Data sources</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#src-cvelist">CVEList</a></li>
@@ -201,6 +205,8 @@ pre .c { color: var(--text-muted); }            /* comment */
       <li class="toc-item"><a class="toc-link sub" href="#cwe-logic">CWE collection</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#ref-logic">Reference filtering</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#epss-logic">EPSS scoring</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#capec-logic">CAPEC associations</a></li>
+
 
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#state">State management</a></li>
@@ -280,6 +286,52 @@ pre .c { color: var(--text-muted); }            /* comment */
         The spinning ⟳ icon on the References row disappears once all Phase 2 queries have settled.
       </p>
     </section>
+    
+    <section class="doc-section" id="landing-curtain">
+  <div class="section-eyebrow">Landing page</div>
+  <h2 class="section-title">Landing curtain</h2>
+  <p class="doc-p">
+    The landing curtain is a collapsible panel rendered before any CVE search. It aggregates live data
+    from four independent feeds, renders a unified scrolling carousel. All processing is client-side; no dedicated endpoint is involved beyond the CORS proxy.
+  </p>
+
+  <h3 class="section-subtitle" id="curtain-feeds">Data feeds</h3>
+  <p class="doc-p">
+    Four asynchronous fetches are launched in parallel on page load. Each resolves independently and
+    triggers a debounced carousel rebuild (60 ms) to avoid redundant DOM operations when multiple sources
+    settle simultaneously.
+  </p>
+  <div class="source-meta-grid" style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin:12px 0 18px;font-size:13px;max-width:720px">
+    <span class="meta-label">NVD Latest</span>
+    <span class="meta-val">NVD REST API v2 with a sliding pubDate window (3 → 7 → 14 days), sorted client-side by <code>published</code> descending. Returns up to 5 CVEs.</span>
+    <span class="meta-label">Top EPSS</span>
+    <span class="meta-val"><code>api.first.org/data/v1/epss?order=!epss&limit=5</code> — top 5 by EPSS score. Each CVE is then individually enriched via NVD (score, description, CWE) with a 300 ms inter-request delay to stay within rate limits.</span>
+    <span class="meta-label">CISA KEV</span>
+    <span class="meta-val">Reuses the module-level CISA KEV cache (<code>_cisaKevCache</code>) already populated by the card fetch path. The 5 most recently added entries (sorted by <code>dateAdded</code>) are shown.</span>
+    <span class="meta-label">ENISA Critical</span>
+    <span class="meta-val"><code>euvdservices.enisa.europa.eu/api/criticalvulnerabilities</code> — up to 5 entries. A parallel request to the most critical new vulnerabilities.</span>
+  </div>
+
+<h3 class="section-subtitle" id="curtain-cache">Session cache</h3>
+  <p class="doc-p">
+    Once all feeds have loaded, the complete dataset is saved to <code>sessionStorage</code> with a
+    one-hour TTL. On subsequent page loads within that window, the banner renders instantly from the
+    cache — no network requests are made. The cache is cleared when the tab is closed.
+  </p>
+
+  <h3 class="section-subtitle" id="curtain-carousel">Carousel rendering</h3>
+  <p class="doc-p">
+    Cards from all active feeds are interleaved in round-robin order and duplicated to produce a
+    seamless infinite scroll. The scroll speed is kept constant regardless of how many cards are
+    displayed, and the animation pauses on hover. CWE names are resolved from the local database
+    and injected into every chip — including the duplicated half of the track — without any
+    additional network request.
+  </p>
+  <p class="doc-p">
+    Toggling a feed filter chip instantly rebuilds the carousel from already-loaded data, with no
+    new fetch triggered.
+  </p>
+</section>
 
     <!-- SOURCES -->
     <section class="doc-section" id="sources">
@@ -674,7 +726,7 @@ pre .c { color: var(--text-muted); }            /* comment */
       </p>
       <p class="doc-p">
         The vector is <strong>normalised</strong> to a canonical number of components before comparison:
-        6 for v2.0, 8 for v3.0/v3.1, 12 for v4.0 (extra metrics like environmental and temporal are
+        6 for v2.0, 8 for v3.0/v3.1, 11 for v4.0 (extra metrics like environmental and temporal are
         stripped). Scores are sorted descending by value; ties broken by version (v4.0 &gt; v3.1 &gt; v3.0 &gt; v2.0).
       </p>
 
@@ -692,9 +744,7 @@ pre .c { color: var(--text-muted); }            /* comment */
 
       <h3 class="section-subtitle" id="cwe-logic">CWE collection</h3>
       <p class="doc-p">
-        Deduplication is by CWE ID (uppercased, validated against
-        <code>/^CWE-\d+$/</code>). If a source provides a name and the entry has none yet, the name is
-        adopted. Sources are appended similarly to CVSS.
+        The CWE is information are retrieve in <code>cwe.js</code>.
       </p>
       <p class="doc-p">
         If any CWE entry is missing a name after collection, one function scrape the CWE detail page from <code>cwe.mitre.org</code> and extract the title from the page's <code>&lt;title&gt;</code> tag.
@@ -718,7 +768,20 @@ pre .c { color: var(--text-muted); }            /* comment */
       <h3 class="section-subtitle" id="epss-logic">EPSS scoring</h3>
       <p class="doc-p">
         EPSS scoring is retrieved from <code>first.org/epss</code>. 
-        One function queries the official EPSS API and retrieves the latest daily score.
+        One function queries the official EPSS API and retrieves the latest daily score, then is compare to the score a month ago, depending of evolution observed an indication will show the trend.
+      </p>
+      <h3 class="section-subtitle" id="capec-logic">CAPEC associations</h3>
+      <p class="doc-p">
+        CAPEC (Common Attack Pattern Enumeration and Classification) entries are sourced from the local
+        <code>data/cwe.js</code> database. Each CWE entry in the database carries an optional <code>c</code>
+        array of CAPEC IDs that are known to exploit that weakness.
+      </p>
+      <p class="doc-p">
+        When CWE chips are rendered, <code>createCweSection()</code> reads the <code>capecs</code> array from
+        the resolved DB entry. A single CAPEC is shown as a direct link chip below the CWE row. When multiple
+        CAPECs exist, they are collapsed behind a <code>N CAPECs ▾</code> toggle button to keep the UI compact.
+        Each chip links to the corresponding CAPEC detail page on capec.mitre.org. No additional network
+        request is made — all data comes from the pre-built local database.
       </p>
     </section>
 
@@ -731,66 +794,56 @@ pre .c { color: var(--text-muted); }            /* comment */
         <code>localStorage</code>, and in <code>sessionStorage</code>.
         Neither layer requires a backend.
       </p>
-      <h3 class="section-subtitle" id="datacache">Data cache — complementary strategy</h3>
+      <h3 class="section-subtitle" id="datacache">Data cache</h3>
       <p class="doc-p">
-        To maximise both persistence and capacity, cached CVE data is split across the two stores
-        according to recency. The master list in <code>localStorage</code> holds up to
-        <strong>50 CVE IDs</strong>; when a 51st CVE is added, the oldest CVE and its data are dropped. Data for the IDs is distributed as follows: the 25 most recent are stored in <code>localStorage</code>, and the 25 oldest in <code>sessionStorage</code>.
+        CVE data is stored exclusively in <code>localStorage</code>, with a maximum of <strong>25 CVE IDs</strong> in the master list (<code>cat_cves</code>). When a 26th CVE is added, the oldest ID and its associated data entry are evicted. All entries share a 7-day TTL.
+      </p>
+      <p class="doc-p">
+        The landing curtain feed data (CISA KEV, ENISA lists, NVD latest, EPSS top 5, EPSS batch map) is cached separately in <code>sessionStorage</code> under the key <code>cat_curtain</code> with a 1-hour TTL. On page reload, the curtain renders instantly from this cache — all network requests are skipped until the TTL expires or the tab is closed.
       </p>
       <div class="source-card" style="max-width:680px;margin:10px 0 20px">
         <div class="source-meta-grid">
           <span class="meta-label">localStorage</span>
-          <span class="meta-val">25 most recent CVEs — TTL <strong>7 days</strong>. Survives tab close and browser restart.</span>
+          <span class="meta-val">Up to 25 CVEs — master list + data cache. TTL <strong>7 days</strong>. Survives tab close and browser restart.</span>
           <span class="meta-label">sessionStorage</span>
-          <span class="meta-val">25 oldest CVEs — TTL <strong>4 hours</strong>. Cleared when the tab is closed.</span>
+          <span class="meta-val">Landing curtain feed data only (<code>cat_curtain</code>) — TTL <strong>1 hour</strong>. Cleared when the tab is closed.</span>
         </div>
       </div>
-      <p class="doc-p">
-      <p class="doc-p">
-        When a CVEs is searched, <code>sessionLoad(cve)</code> checks <code>localStorage</code> first, then
-        <code>sessionStorage</code>. Each entry embeds its own <code>ttl</code> field so the correct
-        expiry is applied regardless of which store it came from.
-      </p>
-      <p class="doc-p">
-        This means that on a <strong>new browser session</strong>, the 25 most recent CVEs are
-        restored instantly from <code>localStorage</code> (no network requests), while the 25 older
-        ones trigger a fresh fetch — exactly like a first-time search for those CVEs.
-      </p>
       <h3 class="section-subtitle" id="lru">LRU eviction</h3>
-      <p class="doc-p">
-        The limit of <code>sessionStorage</code> is 5 MB. When this limit is reached (between 25 and 50 CVEs depending on 
-        the data richness), the Least Recently Used (LRU) strategy is implemented: 
-      </p>
-      <ol style="font-size:13px;line-height:1.9;padding-left:20px;max-width:680px;margin-bottom:14px;color:var(--text)">
-        <li>Attempt to write the new entry.</li>
-        <li>If a <code>QuotaExceededError</code> is caught, scan all CVEs in
-            <code>sessionStorage</code> and find the one with the <strong>lowest
-            timestamp</strong> (oldest write time).</li>
-        <li>Remove that entry and retry the write.</li>
-        <li>Repeat up to 60 times until the write succeeds or no evictable entries remain.</li>
-      </ol>
+        <p class="doc-p">
+          CVE data entries can be large (rich CSAF payloads, full Ubuntu JSON). If <code>localStorage</code> quota is exceeded when saving a card, the Least Recently Used (LRU) strategy evicts the oldest cached entry:
+        </p>
+        <ol style="font-size:13px;line-height:1.9;padding-left:20px;max-width:680px;margin-bottom:14px;color:var(--text)">
+          <li>Attempt to write the new entry.</li>
+          <li>If a <code>QuotaExceededError</code> is caught, scan all <code>cat_cve_*</code> keys in
+              <code>localStorage</code> and find the one with the <strong>lowest
+              timestamp</strong> (oldest write time).</li>
+          <li>Remove that entry and retry the write.</li>
+          <li>Repeat up to 30 times until the write succeeds or no evictable entries remain.</li>
+        </ol>
       <div class="callout callout-info">
         <span class="callout-icon">ℹ️</span>
-        <span>The eviction only affects the session cache. The <code>localStorage</code> CVE list is never touched by the LRU logic — all CVE IDs remain persistent
-        regardless of cache pressure.</span>
+          <span>The LRU eviction removes the oldest <em>data</em> entry (<code>cat_cve_*</code>) but never touches the master ID list (<code>cat_cves</code>) — all 25 CVE IDs remain listed even if their cached data was evicted. A fresh fetch is triggered the next time the card is restored.</span>    
       </div>
 
       <h3 class="section-subtitle" id="localstorage-keys">Cache keys reference</h3>
-      <p class="doc-p">All keys written by CAT in <code>localStorage</code>:</p>
+      <p class="doc-p">All keys written by CAT:</p>
       <div class="source-card" style="max-width:680px;margin:10px 0 16px">
         <div class="source-meta-grid">
           <span class="meta-label">cat_cves</span>
-          <span class="meta-val">JSON array of up to 50 CVE IDs, ordered oldest → newest.</span>
+          <span class="meta-val">JSON array of up to 25 CVE IDs, ordered oldest → newest. (<code>localStorage</code>)</span>
           <span class="meta-label">cat_cve_{ID}</span>
-          <span class="meta-val">Serialised card data (ctx, cvssBase, dotStatuses). Present in <code>localStorage</code> for the 25 most recent, in <code>sessionStorage</code> for the 25 oldest.</span>
+          <span class="meta-val">Serialised card data (ctx, cvssBase, dotStatuses) — TTL 7 days. (<code>localStorage</code>)</span>
+          <span class="meta-label">cat_curtain</span>
+          <span class="meta-val">Landing feed data: full CISA KEV, ENISA lists, NVD latest, EPSS top 5, EPSS map — TTL 1 hour. (<code>sessionStorage</code>)</span>
           <span class="meta-label">cat_sort</span>
-          <span class="meta-val">Active sort key — one of <code>none</code>, <code>cvss-desc</code>, <code>cvss-asc</code>, <code>date-desc</code>, <code>date-asc</code>, <code>id-asc</code>, <code>id-desc</code>.</span>
+          <span class="meta-val">Active sort key — one of <code>none</code>, <code>cvss-desc</code>, <code>cvss-asc</code>, <code>date-desc</code>, <code>date-asc</code>, <code>id-asc</code>, <code>id-desc</code>. (<code>localStorage</code>)</span>
           <span class="meta-label">cat_filters</span>
-          <span class="meta-val">JSON array of active source names (e.g. <code>["NVD","CVEList","RedHat",…]</code>).</span>
+          <span class="meta-val">JSON array of active source names. (<code>localStorage</code>)</span>
           <span class="meta-label">cat_fields</span>
-          <span class="meta-val">JSON object mapping field keys to booleans (e.g. <code>{"desc":true,"cvss3":true,"cvss4":false,…}</code>).</span>
+          <span class="meta-val">JSON object mapping field keys to booleans. (<code>localStorage</code>)</span>
           <span class="meta-label">theme</span>
-          <span class="meta-val"><code>"light"</code> or <code>"dark"</code>.</span>
+          <span class="meta-val"><code>"light"</code> or <code>"dark"</code>. (<code>localStorage</code>)</span>
         </div>
       </div>
     </section>
@@ -850,15 +903,20 @@ pre .c { color: var(--text-muted); }            /* comment */
       <div class="section-eyebrow">Project</div>
       <h2 class="section-title">File structure</h2>
       <pre>
-<span class="c">── Project root ───────────────────────────────────</span>
-  shared.css          <span class="c">CSS variables, nav, buttons — used by all pages</span>
-  app.js              <span class="c">All JS logic for the main page</span>
-  index.html          <span class="c">Main CVE search page</span>
-  user-guide.html     <span class="c">User guide</span>
-  technical-doc.html  <span class="c">Technical documentations</span>
-  changelog.html      <span class="c">Version history</span>
-  contact.html        <span class="c">Author information</span>
-<span class="c">────────────────────────────────────────────────────</span></pre>
+        <span class="c">── Project root ───────────────────────────────────</span>
+        shared.css               <span class="c">CSS variables, navigation, buttons — shared across all pages</span>
+        app.js                   <span class="c">All JavaScript logic for the main page</span>
+        index.html               <span class="c">Primary CVE search interface</span>
+        user-guide.html          <span class="c">User guide</span>
+        technical-doc.html       <span class="c">Technical documentation</span>
+        changelog.html           <span class="c">Version history</span>
+        contact.html             <span class="c">Author information</span>
+
+        data/cwec_v4.19.1.xml    <span class="c">Official CWE catalog from cwe.mitre.org</span>
+        data/generate_cwe_js.py  <span class="c">Converts a CWE XML catalog (cwec_vX.Y.Z.xml) into data/cwe.js</span>
+        data/cwe.js              <span class="c">Formatted CWE dataset used by the application</span>
+        <span class="c">────────────────────────────────────────────────────</span>
+      </pre>
 
       <p class="doc-p">
         Splitting into separate files provides several practical benefits: the main page's <code>app.js</code> can be edited without touching HTML; <code>shared.css</code> ensures all pages share the same design tokens and navigation without copy-paste; and the three documentation pages are purely HTML/CSS with no dependency on <code>app.js</code>, so they load immediately.

@@ -33,7 +33,7 @@ const SOURCE_CONFIG = [
   { name:"PostgreSQL",  url: cve=>`https://www.postgresql.org/support/security/${cve}/` },
   { name:"Oracle",      url: cve=>`https://www.oracle.com/security-alerts/alert-${cve.toLowerCase()}.html` },
   { name:"Xen",         url: _=>`https://xenbits.xen.org/xsa/xsa.json` },
-  { name:"CISA",        url: cve=>`https://www.cisa.gov/known-exploited-vulnerabilities-catalog?search_api_fulltext=${cve}&field_date_added_wrapper=all&field_cve=&sort_by=field_date_added&items_per_page=20&url=` },
+  { name:"CISA",        url: cve=>`https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=${cve}` },
   { name:"ENISA",       url: cve=>`https://euvd.enisa.europa.eu/vulnerability/${cve}` },
 ];
 
@@ -55,13 +55,14 @@ const DESC_SOURCE_URLS = {
   ENISA:      cve=>`https://euvdservices.enisa.europa.eu/api/enisaid?id=${encodeURIComponent(cve)}`,
 };
 
-const PROXY    = "__WORKER_PROXY__";
+//const PROXY    = "__WORKER_PROXY__";
+const PROXY    = "https://cyber.alex-brzk.workers.dev/?url=";
 const DELAY_MS = 400;
 
 /* =================================================================
    PROXY
    ================================================================= */
-const MAX_CONCURRENT = 6;
+const MAX_CONCURRENT = 8;
 let   _activeReqs    = 0;
 const _reqQueue      = [];
 
@@ -155,18 +156,16 @@ function cvssColorClass(s) { if (s == null || s === 0) return "bg-none"; if (s <
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 /* =================================================================
-   CVE PERSISTENCE + COMPLEMENTARY CACHE
+   CVE PERSISTENCE
    ─────────────────────────────────────────────────────────────────
-   Master list : localStorage  "cat_cves"      — max 50 IDs (oldest→newest)
-   Data cache  : localStorage  "cat_cve_{ID}" — 25 most recent, TTL 7 days
-               : sessionStorage "cat_cve_{ID}"— next 25 oldest, TTL 4h
-   Beyond 50   : displayed only, no storage
+   Master list : localStorage "cat_cves"     — max 25 IDs (oldest→newest)
+   Data cache  : localStorage "cat_cve_{ID}" — TTL 7 days
+   Landing     : sessionStorage "cat_curtain" — TTL 1 hour
    ================================================================= */
-const MAX_CVES    = 50;
-const MAX_LS_DATA = 25;                        // newest 25 → localStorage
-const MAX_SS_DATA = 25;                        // next oldest 25 → sessionStorage
-const LS_TTL_MS   = 7 * 24 * 60 * 60 * 1000; // 7 days
-const SS_TTL_MS   = 4 * 60 * 60 * 1000;       // 4 hours
+const MAX_CVES       = 25;
+const LS_TTL_MS      = 7 * 24 * 60 * 60 * 1000; // 7 days
+const CURTAIN_KEY    = "cat_curtain";
+const CURTAIN_TTL_MS = 60 * 60 * 1000;           // 1 hour
 
 /* ── Master list helpers ── */
 function storageGetCves() {
@@ -174,41 +173,13 @@ function storageGetCves() {
 }
 function storageSetCves(l) { localStorage.setItem("cat_cves", JSON.stringify(l)); }
 
-/* ── Target store for a given CVE ──
-   Returns localStorage, sessionStorage, or null (not in list → don't save). */
-function _targetStore(list, cve) {
-  const idx = list.indexOf(cve);
-  if (idx === -1) return null;                         // not in master list → don't store
-  return idx >= list.length - MAX_LS_DATA ? localStorage : sessionStorage;
-}
-
-/* ── Add a CVE to the master list and handle tier migration ── */
+/* ── Add a CVE to the master list ── */
 function storageAddCve(cve) {
   const l = storageGetCves();
   if (l.includes(cve)) return;
-  l.push(cve);                                         // newest at end
-
-  if (l.length > MAX_CVES) {
-    const evicted = l.shift();                         // drop oldest
-    _dataDel(evicted);                                 // delete its data from both stores
-  }
+  l.push(cve);
+  if (l.length > MAX_CVES) { _dataDel(l.shift()); }   // evict oldest
   storageSetCves(l);
-
-  // When the list grows past MAX_LS_DATA the CVE that sits at the
-  // boundary (index length-MAX_LS_DATA-1) has just crossed from
-  // localStorage → sessionStorage. Migrate its data.
-  const migrateIdx = l.length - MAX_LS_DATA - 1;
-  if (migrateIdx >= 0) {
-    const cveToMigrate = l[migrateIdx];
-    const key = `cat_cve_${cveToMigrate}`;
-    const data = localStorage.getItem(key);
-    if (data) {
-      try {
-        _writeWithLRU(sessionStorage, key, data);
-        localStorage.removeItem(key);
-      } catch { /* keep in localStorage if sessionStorage full */ }
-    }
-  }
 }
 
 function storageRemoveCve(cve) {
@@ -222,64 +193,38 @@ function storageClearCves() {
 }
 
 /* ── Data helpers ── */
-function _dataDel(cve) {
-  const k = `cat_cve_${cve}`;
-  localStorage.removeItem(k);
-  sessionStorage.removeItem(k);
-}
+function _dataDel(cve) { localStorage.removeItem(`cat_cve_${cve}`); }
 
 function _dataDelAll() {
   const prefix = "cat_cve_";
-  [localStorage, sessionStorage].forEach(store => {
-    Object.keys(store).filter(k => k.startsWith(prefix)).forEach(k => store.removeItem(k));
-  });
+  Object.keys(localStorage).filter(k => k.startsWith(prefix)).forEach(k => localStorage.removeItem(k));
 }
 
-/* ── LRU-aware write (safety net for quota) ──
-   Only evicts entries whose CVE is in the SAME tier in the current master list,
-   so it never wrongly evicts a CVE from the other tier. */
-function _writeWithLRU(store, key, serialised) {
-  const isLS   = store === localStorage;
-  const list   = storageGetCves();
-  const lsSet  = new Set(list.slice(list.length - MAX_LS_DATA));
-  const ssSet  = new Set(list.slice(0, list.length - MAX_LS_DATA));
-  const allowedSet = isLS ? lsSet : ssSet;
-
-  for (let attempt = 0; attempt < 60; attempt++) {
-    try { store.setItem(key, serialised); return; }
+/* ── LRU-aware write to localStorage (safety net for quota) ── */
+function _writeWithLRU(key, serialised) {
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try { localStorage.setItem(key, serialised); return; }
     catch (e) {
       if (e.name !== "QuotaExceededError" && e.name !== "NS_ERROR_DOM_QUOTA_REACHED") return;
-      // Find oldest entry that belongs to this tier
       let oldestKey = null, oldestTs = Infinity;
-      for (let i = 0; i < store.length; i++) {
-        const k = store.key(i);
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
         if (!k || !k.startsWith("cat_cve_") || k === key) continue;
-        const id = k.replace("cat_cve_", "");
-        if (!allowedSet.has(id)) continue;             // belongs to other tier → don't touch
-        try {
-          const ts = JSON.parse(store.getItem(k))?.ts ?? 0;
-          if (ts < oldestTs) { oldestTs = ts; oldestKey = k; }
-        } catch { oldestKey = k; oldestTs = 0; }
+        try { const ts = JSON.parse(localStorage.getItem(k))?.ts ?? 0; if (ts < oldestTs) { oldestTs = ts; oldestKey = k; } }
+        catch { oldestKey = k; oldestTs = 0; }
       }
       if (!oldestKey) return;
-      store.removeItem(oldestKey);
+      localStorage.removeItem(oldestKey);
     }
   }
 }
 
 /* ── Save after Phase-2 settles ── */
 function sessionSave(cve, ctx, cvssBase) {
-  const list   = storageGetCves();
-  const target = _targetStore(list, cve);
-  if (!target) return;                                 // CVE not in master list → don't store
-
-  const isLS  = target === localStorage;
-  const other = isLS ? sessionStorage : localStorage;
-  const ttl   = isLS ? LS_TTL_MS : SS_TTL_MS;
-
+  if (!storageGetCves().includes(cve)) return;         // CVE not in master list → skip
   const { statuses, urls } = _getDotStatuses(cve);
   const payload = {
-    ts: Date.now(), ttl,
+    ts: Date.now(), ttl: LS_TTL_MS,
     ctx: {
       cveListData:     ctx.cveListData     ?? null,
       nvdData:         ctx.nvdData         ?? null,
@@ -307,31 +252,39 @@ function sessionSave(cve, ctx, cvssBase) {
     dotStatuses: statuses,
     dotUrls:     urls,
   };
-
-  const key        = `cat_cve_${cve}`;
-  const serialised = JSON.stringify(payload);
-  other.removeItem(key);                               // clean up if CVE was in wrong tier
-  _writeWithLRU(target, key, serialised);
+  _writeWithLRU(`cat_cve_${cve}`, JSON.stringify(payload));
 }
 
-/* ── Load (localStorage first, then sessionStorage) ── */
+/* ── Load from localStorage ── */
 function sessionLoad(cve) {
   const key = `cat_cve_${cve}`;
-  for (const store of [localStorage, sessionStorage]) {
-    try {
-      const raw = store.getItem(key);
-      if (!raw) continue;
-      const p = JSON.parse(raw);
-      if (Date.now() - p.ts > (p.ttl ?? SS_TTL_MS)) { store.removeItem(key); continue; }
-      return p;
-    } catch { continue; }
-  }
-  return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    const ttl = p.ttl ?? LS_TTL_MS;
+    if (Date.now() - p.ts > ttl) { localStorage.removeItem(key); return null; }    return p;
+  } catch { return null; }
 }
 
 /* ── Remove / clear ── */
 function sessionRemove(cve) { _dataDel(cve); }
 function sessionClearAll()  { _dataDelAll(); }
+
+/* ── Landing curtain cache (sessionStorage, TTL 1 hour) ── */
+function _curtainSave(payload) {
+  try { sessionStorage.setItem(CURTAIN_KEY, JSON.stringify({ ts: Date.now(), ...payload })); }
+  catch { /* quota exceeded — skip */ }
+}
+function _curtainLoad() {
+  try {
+    const raw = sessionStorage.getItem(CURTAIN_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (Date.now() - p.ts > CURTAIN_TTL_MS) { sessionStorage.removeItem(CURTAIN_KEY); return null; }
+    return p;
+  } catch { return null; }
+}
 
 function _getDotStatuses(cve) {
   const statuses = {}, urls = {};
@@ -411,8 +364,21 @@ function pushCwe(list, id, name, source) {
   if (ex) { if (name && !ex.name) ex.name = normalizeText(name); if (!ex.sources.includes(source)) ex.sources.push(source); }
   else list.push({ id: c, name: normalizeText(name) || null, sources: [source] });
 }
+/* =================================================================
+   CWE LOCAL DATABASE — injected by <script src="data/cwe.js">
+   That script sets window._CWE_DB = { "ID": {n,d,c}, ... }
+   No fetch needed — works on file://, http:// and https://.
+   Falls back to cwe.mitre.org scraping if the script is absent.
+   ================================================================= */
+function getCweDb() {
+  return window._CWE_DB || null;
+}
+
 async function fetchCweName(cweId) {
   const num = cweId.replace(/^CWE-/i, "");
+  const db  = await getCweDb();
+  if (db?.[num]?.n) return db[num].n;
+  // Fallback: scrape mitre.org if local DB unavailable
   const html = await proxyFetch(`https://cwe.mitre.org/data/definitions/${num}.html`, "text");
   if (!html) return null;
   const m = html.match(/<title[^>]*>CWE\s*-\s*CWE-\d+:\s*([^<(]+)/i); if (m) return m[1].trim();
@@ -452,10 +418,10 @@ function collectCweList(cveListData, nvdData, rhCsaf, suseCsaf, msrcVuln, cisaDa
       }
     }));
   }
-
-  extractCwesFromContainer(cna, "CVEList");
+  const cnaSource = normalizeText(cveListData?.containers?.cna?.providerMetadata?.shortName) || "CVEList";
+  extractCwesFromContainer(cna, cnaSource);
   // ADP containers
-  getAdpContainers(cveListData).forEach(adp => extractCwesFromContainer(adp, "CVEList"));
+  getAdpContainers(cveListData).forEach(adp => extractCwesFromContainer(adp, "CISA-ADP"));
 
   (nvdData?.weaknesses || []).forEach(w => (w.description || []).forEach(d => pushCwe(list, d.value, null, "NVD")));
   function fromCsaf(csaf, src) {
@@ -1054,14 +1020,50 @@ async function fetchEnisaData(cve) {
 /* =================================================================
    EPSS — Exploit Prediction Scoring System (FIRST.org)
    ================================================================= */
+
+  /* EPSS batch cache — populated by prefetchEpssBatch() for multi-CVE searches */
+const _epssCache = new Map();
+
+async function prefetchEpssBatch(cves) {
+  const d = new Date(); d.setMonth(d.getMonth() - 1);
+  const prevDate = d.toISOString().slice(0, 10);
+  const ids = cves.slice(0, 40).join(",");
+  const [r, rPrev] = await Promise.all([
+    proxyFetchWithStatus(`https://api.first.org/data/v1/epss?cve=${encodeURIComponent(ids)}`, "json"),
+    proxyFetchWithStatus(`https://api.first.org/data/v1/epss?cve=${encodeURIComponent(ids)}&date=${prevDate}`, "json"),
+  ]);
+  const currMap = {}, prevMap = {};
+  if (r.httpStatus === 200)    (r.data?.data    || []).forEach(e => { currMap[e.cve] = e; });
+  if (rPrev.httpStatus === 200)(rPrev.data?.data || []).forEach(e => { prevMap[e.cve] = e; });
+  cves.forEach(cve => {
+    if (_epssCache.has(cve)) return;
+    const curr = currMap[cve] ?? null;
+    _epssCache.set(cve, {
+      epss:         curr?.epss         ?? null,
+      epss_prev:    prevMap[cve]?.epss ?? null,
+      date:         curr?.date         ?? null,
+      networkError: r.httpStatus === 0,
+    });
+  });
+}
+
 async function fetchEpssData(cve) {
-  const r = await proxyFetchWithStatus(`https://api.first.org/data/v1/epss?cve=${encodeURIComponent(cve)}`, "json");
-  if (r.httpStatus === 0) return { epss: null, date: null, networkError: true };
+  if (_epssCache.has(cve)) return _epssCache.get(cve);
+  const d = new Date(); d.setMonth(d.getMonth() - 1);
+  const prevDate = d.toISOString().slice(0, 10);
+  const base = `https://api.first.org/data/v1/epss?cve=${encodeURIComponent(cve)}`;
+  const [r, rPrev] = await Promise.all([
+    proxyFetchWithStatus(base, "json"),
+    proxyFetchWithStatus(`${base}&date=${prevDate}`, "json"),
+  ]);
+  if (r.httpStatus === 0) return { epss: null, epss_prev: null, date: null, networkError: true };
   const entry = r.data?.data?.[0];
-  if (!entry) return { epss: null, date: null, networkError: false };
+  if (!entry) return { epss: null, epss_prev: null, date: null, networkError: false };
+  const entryPrev = rPrev.httpStatus === 200 ? rPrev.data?.data?.[0] : null;
   return {
-    epss:         entry.epss        ?? null,
-    date:         entry.date        ?? null,
+    epss:         entry.epss      ?? null,
+    epss_prev:    entryPrev?.epss ?? null,
+    date:         entry.date      ?? null,
     networkError: false,
   };
 }
@@ -1119,32 +1121,59 @@ function renderEpssInCard(cve, epssData) {
   if (!el) return;
   el.innerHTML = "";
   if (!epssData || epssData.epss == null) return;
-  const epssScore  = parseFloat(epssData.epss);
+  const epssScore = parseFloat(epssData.epss);
   if (isNaN(epssScore)) return;
 
   const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "•";
   el.appendChild(sep);
 
-  // EPSS badge — danger proportional to score itself (0→1)
   const epssBadge = document.createElement("span");
   epssBadge.className = "epss-badge";
   epssBadge.dataset.t = String(epssScore);
-  epssBadge.title = "EPSS Score : The probability that the vulnerability will be exploited in the next 30 days.";
+
   const valueEl = document.createElement("span"); valueEl.className = "epss-value";
-  valueEl.textContent = (epssScore * 100).toFixed(2) + " %";
+  valueEl.textContent = (epssScore * 100).toFixed(2) + "%";
   epssBadge.appendChild(valueEl);
+
+  // Trend indicator vs previous month
+  const BASE_TITLE = "EPSS Score : The probability that the vulnerability will be exploited in the next 30 days.";
+  if (epssData.epss_prev != null) {
+    const prev = parseFloat(epssData.epss_prev);
+    if (!isNaN(prev)) {
+      const diff = epssScore - prev;
+      const THRESH = 0.001;
+      const trendEl = document.createElement("span");
+      trendEl.className = "epss-trend";
+      let trendDesc;
+      if (diff > THRESH) {
+        trendEl.textContent = "↑";
+        trendEl.dataset.dir = "up";
+        trendDesc = `↑ +${(diff * 100).toFixed(2)}% up compared last month`;
+      } else if (diff < -THRESH) {
+        trendEl.textContent = "↓";
+        trendEl.dataset.dir = "down";
+        trendDesc = `↓ ${(diff * 100).toFixed(2)}% down compared last month`;
+      } else {
+        trendEl.textContent = "-";
+        trendEl.dataset.dir = "stable";
+        trendDesc = "- stable compared last month";
+      }
+      epssBadge.appendChild(trendEl);
+      epssBadge.title = `${BASE_TITLE}\n${trendDesc}`;
+    }
+  } else {
+    epssBadge.title = BASE_TITLE;
+  }
   _applyEpssBadgeStyle(epssBadge);
+
   const link = document.createElement("a");
   link.href = `https://api.first.org/data/v1/epss?cve=${encodeURIComponent(cve)}`;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
+  link.target = "_blank"; link.rel = "noopener noreferrer";
   link.appendChild(epssBadge);
   el.appendChild(link);
 }
 
-/* Watch for theme attribute changes to refresh EPSS badge colours */
-new MutationObserver(() => refreshAllEpssColors())
-  .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
 function extractDescFromCsaf(csaf) {
   if (!csaf) return null;
   const vuln = csaf?.document?.vulnerabilities?.[0] || csaf?.vulnerabilities?.[0];
@@ -1193,33 +1222,10 @@ function createSkeletonCard(cve) {
     <div class="skeleton-line" style="width:60%;margin-top:6px"></div>`;
   return card;
 }
-function createTemplateCard() {
-  const card = document.createElement("div"); card.className = "cve-card template"; card.id = "templateCard";
-  const fakeChips = SOURCE_CONFIG.map(s => `<a class="source-chip"><span class="dot dot-wait"></span>${esc(s.name)}</a>`).join("");
-  card.innerHTML = `<div class="template-label">Example CVE card</div>
-    <div class="card-top"><div class="card-meta-left">
-      <div class="card-meta-row"><span class="assigner">mitre</span><span class="sep">•</span><span class="date">01/01/2024</span></div>
-      <div class="cve-title">CVE-XXXX-XXXXX</div></div>
-      <div class="card-chips-right">${fakeChips}</div></div>
-    <div class="desc-table">
-      <div class="desc-row"><div class="desc-sources"><span class="source-badge badge-cvelist">CVEList</span><span class="source-badge badge-nvd">NVD</span></div>
-        <div class="desc-text">Multiple sources sharing the same description are grouped on one row.</div></div>
-      <div class="desc-row"><div class="desc-sources"><span class="source-badge badge-microsoft">Microsoft</span></div>
-        <div class="desc-text">A different description from another source appears on its own row.</div></div></div>
-    <div class="cvss-section">
-      <span class="cvss-badge bg-critical"><span class="version">CVSS v3.1</span><span class="score">9.8</span><span class="sources">NVD</span></span>
-      <span class="cvss-badge bg-high"><span class="version">CVSS v2.0</span><span class="score">7.5</span><span class="sources">NVD</span></span></div>
-    <div class="cwe-section">
-      <a class="cwe-chip" href="https://cwe.mitre.org/data/definitions/416.html" target="_blank"><span class="cwe-chip-id">CWE-416</span><span class="cwe-chip-sep"> — </span><span class="cwe-chip-name">Use After Free</span><span class="cwe-chip-srcs"> (CVEList, NVD)</span></a></div>
-    <details class="refs-details">
-      <summary class="refs-summary"><span class="refs-arrow">▶</span><span>References</span><span class="refs-count">3</span></summary>
-      <div class="refs-body"><div class="ref-row"><div class="ref-src-badges"><span class="source-badge badge-cvelist">CVEList</span></div>
-        <a class="ref-link" href="#" target="_blank">https://example.com/advisory/2024-001</a></div></div></details>`;
-  return card;
-}
-function createSourceBadge(name, url) {
+function createSourceBadge(name, url, cssClass) {
   const el = document.createElement(url ? "a" : "span");
-  el.className = `source-badge badge-${name.toLowerCase()}`; el.textContent = name;
+  el.className = `source-badge badge-${(cssClass || name).toLowerCase()}`;
+  el.textContent = name;
   if (url) { el.href = url; el.target = "_blank"; el.title = url; }
   return el;
 }
@@ -1227,7 +1233,7 @@ function createDescRow(sources, text) {
   const row = document.createElement("div"); row.className = "desc-row";
   row.dataset.sources = sources.length ? sources.map(s => s.name).join(",") : "?";
   const left = document.createElement("div"); left.className = "desc-sources";
-  if (sources.length) sources.forEach(s => left.appendChild(createSourceBadge(s.name, s.url)));
+  if (sources.length) sources.forEach(s => left.appendChild(createSourceBadge(s.name, s.url, s.cssClass)));
   else { const ph = document.createElement("span"); ph.className = "source-badge"; ph.textContent = "?"; left.appendChild(ph); }
   const right = document.createElement("div"); right.className = "desc-text"; right.textContent = text || "";
   row.appendChild(left); row.appendChild(right); return row;
@@ -1252,18 +1258,61 @@ function createCvssBadge({ version, score, vector, sources }) {
 function createCweSection(cweList) {
   if (!cweList.length) return null;
   const section = document.createElement("div"); section.className = "cwe-section";
-  cweList.forEach(({ id, name, sources }) => {
-    const num = id.slice(4), href = `https://cwe.mitre.org/data/definitions/${num}.html`;
-    const chip = document.createElement("a"); chip.className = "cwe-chip"; chip.href = href; chip.target = "_blank"; chip.title = href;
+  cweList.forEach(({ id, name, desc, capecs, sources }) => {
+    const num  = id.slice(4);
+    const href = `https://cwe.mitre.org/data/definitions/${num}.html`;
+    const entry = document.createElement("div"); entry.className = "cwe-entry";
+
+    // CWE chip row
+    const chipRow = document.createElement("div"); chipRow.className = "cwe-chip-row";
+    const chip = document.createElement("a"); chip.className = "cwe-chip"; chip.href = href;
+    chip.target = "_blank"; chip.title = desc || href;
     chip.dataset.sources = sources.join(",");
     const idEl = document.createElement("span"); idEl.className = "cwe-chip-id"; idEl.textContent = id; chip.appendChild(idEl);
     if (name) {
       const sep = document.createElement("span"); sep.className = "cwe-chip-sep"; sep.textContent = " — ";
-      const nm = document.createElement("span"); nm.className = "cwe-chip-name"; nm.textContent = name;
+      const nm  = document.createElement("span"); nm.className  = "cwe-chip-name"; nm.textContent = name;
       chip.appendChild(sep); chip.appendChild(nm);
     }
     const sr = document.createElement("span"); sr.className = "cwe-chip-srcs"; sr.textContent = ` (${sources.join(", ")})`; chip.appendChild(sr);
-    section.appendChild(chip);
+    chipRow.appendChild(chip);
+    entry.appendChild(chipRow);
+
+    // CAPEC row — always visible, connected by an arrow
+    const capecList = capecs || [];
+    if (capecList.length) {
+      const capecRow = document.createElement("div"); capecRow.className = "capec-row";
+      const arrow = document.createElement("span"); arrow.className = "capec-arrow"; arrow.textContent = "\u21b3";
+      capecRow.appendChild(arrow);
+
+      if (capecList.length === 1) {
+        // Single CAPEC — show directly
+        const a = document.createElement("a"); a.className = "capec-chip";
+        a.href = `https://capec.mitre.org/data/definitions/${capecList[0]}.html`;
+        a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.textContent = `CAPEC-${capecList[0]}`; capecRow.appendChild(a);
+      } else {
+        // Multiple CAPECs — collapsed behind a summary chip
+        const chips = document.createElement("span"); chips.className = "capec-chips"; chips.hidden = true;
+        capecList.forEach(cid => {
+          const a = document.createElement("a"); a.className = "capec-chip";
+          a.href = `https://capec.mitre.org/data/definitions/${cid}.html`;
+          a.target = "_blank"; a.rel = "noopener noreferrer";
+          a.textContent = `CAPEC-${cid}`; chips.appendChild(a);
+        });
+        const toggle = document.createElement("button"); toggle.className = "capec-toggle"; toggle.type = "button";
+        toggle.textContent = `${capecList.length} CAPECs \u25be`;
+        toggle.addEventListener("click", () => {
+          const open = chips.hidden;
+          chips.hidden = !open;
+          toggle.textContent = open ? `${capecList.length} CAPECs \u25b4` : `${capecList.length} CAPECs \u25be`;
+        });
+        capecRow.appendChild(toggle);
+        capecRow.appendChild(chips);
+      }
+      entry.appendChild(capecRow);
+    }
+    section.appendChild(entry);
   });
   return section;
 }
@@ -1351,6 +1400,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     // ── collect all (name, url, text) description candidates in priority order ──
     const allDescItems = [];
     const cveListDesc = normalizeText(ctx.cveListData?.containers?.cna?.descriptions?.[0]?.value);
+    const cnaSource   = normalizeText(ctx.cveListData?.containers?.cna?.providerMetadata?.shortName) || "CVEList";
     const nvdDesc     = normalizeText(ctx.nvdData?.descriptions?.[0]?.value);
     const rhDesc      = extractDescFromCsaf(ctx.rhCsaf) || extractDescFromRedHatLegacy(ctx.rhOld);
     const suseDesc    = extractDescFromCsaf(ctx.suseCsaf);
@@ -1365,8 +1415,8 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     const xenDesc     = ctx.xenData?.desc || null;
     const cisaDesc    = ctx.cisaData?.desc || null;
     const enisaDesc   = ctx.enisaData?.desc || null;
-
-    if (cveListDesc) allDescItems.push({ name:"CVEList",     url:DESC_SOURCE_URLS.CVEList(cve),     text:cveListDesc });
+    
+    if (cveListDesc) allDescItems.push({ name:"CVEList",      url:DESC_SOURCE_URLS.CVEList(cve),     text:cveListDesc });
     if (nvdDesc)     allDescItems.push({ name:"NVD",          url:DESC_SOURCE_URLS.NVD(cve),         text:nvdDesc });
     if (rhDesc)      allDescItems.push({ name:"RedHat",       url:DESC_SOURCE_URLS.RedHat(cve),      text:rhDesc });
     if (suseDesc)    allDescItems.push({ name:"SUSE",         url:DESC_SOURCE_URLS.SUSE(cve),        text:suseDesc });
@@ -1436,7 +1486,19 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
 
   async function refreshCwe() {
     const cweAll = collectCweList(ctx.cveListData, ctx.nvdData, ctx.rhCsaf, ctx.suseCsaf, ctx.msrcData?.vuln, ctx.cisaData);
-    await Promise.all(cweAll.filter(c => !c.name).map(async c => { c.name = await fetchCweName(c.id); }));
+    const db = await getCweDb();
+    await Promise.all(cweAll.map(async c => {
+      const num   = c.id.replace(/^CWE-/i, "");
+      const entry = db?.[num];
+      if (entry) {
+        if (!c.name) c.name = entry.n || null;
+        c.desc   = entry.d || null;
+        c.capecs = entry.c || [];
+      } else {
+        c.capecs = [];
+        if (!c.name) c.name = await fetchCweName(c.id); // fallback if DB missing
+      }
+    }));
     const cweContainer = document.getElementById(`cwe-${cve}`);
     if (cweContainer) { cweContainer.innerHTML = ""; const sec = createCweSection(cweAll); if (sec) cweContainer.appendChild(sec); }
     applyFilter();
@@ -1467,9 +1529,10 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     if (cachedData) {
       cvssBase.push(...(cachedData.cvssBase || []));
     } else {
-      if (cna) extractMetricsFromContainer(cna, "CVEList", cvssBase);
+      const cnaSource = normalizeText(cna?.providerMetadata?.shortName) || "CVEList";
+      if (cna) extractMetricsFromContainer(cna, cnaSource, cvssBase);
       // ADP containers (CVE Program enrichment, introduced 2024-07-31)
-      getAdpContainers(cveListData).forEach(adp => extractMetricsFromContainer(adp, "CVEList", cvssBase));
+      getAdpContainers(cveListData).forEach(adp => extractMetricsFromContainer(adp, "CISA-ADP", cvssBase));
       if (ctx.nvdData?.metrics) {
         const m = ctx.nvdData.metrics;
         (m.cvssMetricV40 || []).forEach(s => pushCvss(cvssBase, "v4.0", s.cvssData, "NVD"));
@@ -1751,17 +1814,18 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
    SOURCE FILTER
    ================================================================= */
 const SOURCE_GROUPS = {
-  databases: ["CVEList","NVD","ENISA"],
-  editors:   ["RedHat","SUSE","Debian","Ubuntu","Microsoft","Amazon","LibreOffice","PostgreSQL","Oracle","Xen","CISA"],
+  databases: ["CVEList","NVD","ENISA","CISA"],
+  editors:   ["RedHat","SUSE","Debian","Ubuntu","Microsoft","Amazon","LibreOffice","PostgreSQL","Oracle","Xen"],
 };
 const ALL_SOURCES   = [...SOURCE_GROUPS.databases, ...SOURCE_GROUPS.editors];
 const LOCKED_SOURCES = new Set(); // all sources are toggleable
 const activeSources  = new Set(ALL_SOURCES);
 
 function applyFilter() {
+  const _n = s => ALL_SOURCES.includes(s) ? s : "CVEList"; // unknown → CVEList family
   document.querySelectorAll(".desc-row[data-sources]").forEach(row => {
     const srcs = row.dataset.sources.split(",");
-    const vis  = srcs.filter(s => activeSources.has(s));
+    const vis  = srcs.filter(s => activeSources.has(_n(s)));
     row.style.display = vis.length ? "" : "none";
     row.querySelectorAll(".source-badge").forEach(b => {
       const n = b.textContent.trim();
@@ -1770,29 +1834,30 @@ function applyFilter() {
   });
   document.querySelectorAll(".cvss-badge[data-sources]").forEach(badge => {
     const srcs = badge.dataset.sources.split(",");
-    const vis  = srcs.filter(s => activeSources.has(s));
+    const vis  = srcs.filter(s => activeSources.has(_n(s)));
     badge.style.display = vis.length ? "" : "none";
     const span = badge.querySelector(".sources"); if (span) span.textContent = vis.join(", ");
   });
   document.querySelectorAll(".ref-row[data-sources]").forEach(row => {
     const srcs = row.dataset.sources.split(",");
-    const vis  = srcs.some(s => activeSources.has(s));
+    const vis  = srcs.some(s => activeSources.has(_n(s)));
     row.style.display = vis ? "" : "none";
     row.querySelectorAll(".source-badge").forEach(b => {
       const n = b.textContent.trim();
       b.style.display = (!n || activeSources.has(n)) ? "" : "none";
     });
   });
-  document.querySelectorAll(".cwe-chip[data-sources]").forEach(chip => {
+  document.querySelectorAll(".cwe-entry").forEach(entry => {
+    const chip = entry.querySelector(".cwe-chip[data-sources]"); if (!chip) return;
     const srcs = chip.dataset.sources.split(",");
-    const vis  = srcs.filter(s => activeSources.has(s));
-    chip.style.display = vis.length ? "" : "none";
+    const vis  = srcs.filter(s => activeSources.has(_n(s)));
+    entry.style.display = vis.length ? "" : "none";
     const srEl = chip.querySelector(".cwe-chip-srcs"); if (srEl) srEl.textContent = vis.length ? ` (${vis.join(", ")})` : "";
   });
   // Source chips — consider both filter state and collapse state
   document.querySelectorAll(".source-chip[data-source]").forEach(chip => {
     const src    = chip.dataset.source;
-    const active = activeSources.has(src);
+    const active = activeSources.has(_n(src));
     chip.dataset.filtered = active ? "false" : "true";
     const collapsed = chip.dataset.collapsed === "true";
     const expanded  = chip.closest(".card-chips-right")?.classList.contains("chips-expanded");
@@ -2034,6 +2099,9 @@ async function handleSearch() {
   const raw = input.value.trim(); if (!raw) return;
   const newCves = extractCveIds(raw).filter(c => !displayedCVEs.has(c));
   if (!newCves.length) { alert("All these CVEs are already displayed."); return; }
+  retractCurtain();
+  getXenJson();                                         // pre-warm Xen advisory index
+  if (newCves.length > 1) prefetchEpssBatch(newCves);  // batch EPSS for multi-CVE search
   btn.disabled = true; btn.textContent = `Loading (0/${newCves.length})…`;
   for (let i = 0; i < newCves.length; i++) {
     const cve = newCves[i]; displayedCVEs.add(cve);
@@ -2048,10 +2116,10 @@ async function handleSearch() {
    ================================================================= */
 document.addEventListener("DOMContentLoaded", () => {
   const input = document.getElementById("searchInput"), btn = document.getElementById("searchBtn");
-  document.getElementById("cveResults").appendChild(createTemplateCard());
   input.addEventListener("input", () => { btn.disabled = !extractCveIds(input.value.toUpperCase()).length; });
   initFilterChips();
   initFieldChips();
+  initLanding(); // init landing curtain data feeds
 
   // Restore the sort from localStorage
   const savedSort = localStorage.getItem("cat_sort");
@@ -2066,6 +2134,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (urlCves.length) {
     // Clean the URL without reloading the page
     history.replaceState(null, "", location.pathname);
+    retractCurtain();
     (async () => {
       for (let i = 0; i < urlCves.length; i++) {
         const cve = urlCves[i];
@@ -2082,6 +2151,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const saved = storageGetCves();
   if (saved.length) {
+    retractCurtain();
     (async () => {
       for (let i = 0; i < saved.length; i++) {
         const cve = saved[i];
@@ -2110,18 +2180,15 @@ function updateClearSection() {
 function deleteCve(cve) {
   document.querySelector(`.cve-card[data-cve="${cve}"]`)?.remove();
   displayedCVEs.delete(cve); cveData.delete(cve); storageRemoveCve(cve); sessionRemove(cve);
-  const container = document.getElementById("cveResults");
-  if (!document.getElementById("templateCard") && !document.querySelectorAll(".cve-card:not(.template)").length)
-    container.appendChild(createTemplateCard());
   updateClearSection(); refreshSummary();
+  if (!document.querySelectorAll(".cve-card:not(.template)").length) expandCurtain();
 }
 
 function clearAllCves() {
   document.querySelectorAll(".cve-card:not(.template)").forEach(c => c.remove());
   displayedCVEs.clear(); cveData.clear(); storageClearCves(); sessionClearAll();
-  const container = document.getElementById("cveResults");
-  if (!document.getElementById("templateCard")) container.appendChild(createTemplateCard());
   updateClearSection(); refreshSummary();
+  expandCurtain();
 }
 
 async function refreshCve(cve) {
@@ -2172,8 +2239,9 @@ async function refreshCve(cve) {
         cardEl.dataset.date = published;
       }
       // Add CVElist scores (CNA + ADP)
-      extractMetricsFromContainer(cna2, "CVEList", stored.cvssBase);
-      getAdpContainers(data).forEach(adp => extractMetricsFromContainer(adp, "CVEList", stored.cvssBase));
+      const cnaSource2 = normalizeText(data?.containers?.cna?.providerMetadata?.shortName) || "CVEList";
+      extractMetricsFromContainer(cna2, cnaSource2, stored.cvssBase);
+      getAdpContainers(data).forEach(adp => extractMetricsFromContainer(adp, "CISA-ADP", stored.cvssBase));
       sortCvss(stored.cvssBase);
     }
     stored.refreshCard();
@@ -2359,3 +2427,441 @@ function applySort() {
   cards.forEach(c => container.appendChild(c));
   refreshSummary();
 }
+/* =================================================================
+   LANDING CURTAIN — live feeds + stats dashboard
+   ================================================================= */
+let _curtainRetracted = false;
+let _landingInitDone  = false;
+
+/* ── Curtain visibility ── */
+function retractCurtain() {
+  if (_curtainRetracted) return;
+  _curtainRetracted = true;
+  document.getElementById("curtainWrapper")?.classList.add("retracted");
+  const handle = document.getElementById("curtainHandle");
+  if (handle) handle.style.display = "";
+  const lbl = document.getElementById("chLabel");
+  if (lbl) lbl.textContent = "▼  Latest vulnerabilities";
+}
+
+function expandCurtain() {
+  _curtainRetracted = false;
+  document.getElementById("curtainWrapper")?.classList.remove("retracted");
+  const handle = document.getElementById("curtainHandle");
+  if (handle) handle.style.display = "flex";
+  const lbl = document.getElementById("chLabel");
+  if (lbl) lbl.textContent = "▲  Collapse feed";
+}
+
+function toggleCurtain() { _curtainRetracted ? expandCurtain() : retractCurtain(); }
+
+/* ── Skeleton placeholders — inside a carousel-track wrapper ── */
+function _renderSkeletons(id, n = 8) {
+  const el = document.getElementById(id); if (!el) return;
+  el.innerHTML = "";
+  const track = document.createElement("div"); track.className = "carousel-track";
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement("div"); c.className = "lcve-card";
+    c.innerHTML = `
+      <div class="lcve-skel" style="height:9px;width:40%;margin-bottom:8px;border-radius:3px"></div>
+      <div class="lcve-skel" style="height:11px;width:60%;margin-bottom:6px"></div>
+      <div class="lcve-skel" style="height:8px;width:35%;margin-bottom:10px"></div>
+      <div class="lcve-skel" style="height:9px;width:100%;margin-bottom:3px"></div>
+      <div class="lcve-skel" style="height:9px;width:80%;margin-bottom:3px"></div>
+      <div class="lcve-skel" style="height:9px;width:65%"></div>`;
+    track.appendChild(c);
+  }
+  el.appendChild(track);
+}
+
+/* ── ENISA list endpoints (exploited / critical) ── */
+async function _fetchEnisaList(type) {
+  const url = type === "exploited"
+    ? "https://euvdservices.enisa.europa.eu/api/exploitedvulnerabilities"
+    : "https://euvdservices.enisa.europa.eu/api/criticalvulnerabilities";
+  const r = await proxyFetchWithStatus(url, "json");
+  if (r.httpStatus !== 200 || !r.data) return [];
+  const raw = Array.isArray(r.data) ? r.data
+    : (r.data.data || r.data.items || r.data.vulnerabilities || r.data.results || []);
+  return Array.isArray(raw) ? raw.slice(0, 10) : [];
+}
+
+/* ── NVD: latest published CVEs ── */
+async function _fetchNvdLatest() {
+  // NVD API v2 has no sortBy param — filter by pubDate window + sort client-side
+  // Try 3-day window first, extend to 7 days if fewer than 5 results
+  const fmt = d => d.toISOString().slice(0, 19) + ".000";
+  const now = new Date();
+
+  for (const days of [3, 7, 14]) {
+    const r = await proxyFetchWithStatus(
+      `https://services.nvd.nist.gov/rest/json/cves/2.0?pubStartDate=${fmt(new Date(now - days * 86400000))}&pubEndDate=${fmt(now)}&resultsPerPage=20`,
+      "json"
+    );
+    if (r.httpStatus !== 200 || !r.data) continue;
+    const sorted = (r.data.vulnerabilities || [])
+      .map(v => v.cve).filter(Boolean)
+      .sort((a, b) => (b.published || "").localeCompare(a.published || ""));
+    if (sorted.length >= 5) return sorted.slice(0, 5);
+    if (sorted.length > 0)  return sorted; // fewer than 5 but window exhausted
+  }
+  return [];
+}
+
+async function _fetchEpssTop5() {
+  const r = await proxyFetchWithStatus(
+    "https://api.first.org/data/v1/epss?order=!epss&limit=5", "json"
+  );
+  if (r.httpStatus !== 200 || !r.data?.data) return [];
+  return r.data.data; // [{cve, epss, percentile, date}]
+}
+
+/* ── EPSS batch: one request for all CVE IDs ── */
+async function _fetchEpssBatch(ids) {
+  if (!ids.length) return {};
+  const r = await proxyFetchWithStatus(
+    `https://api.first.org/data/v1/epss?cve=${ids.slice(0, 40).join(",")}`,
+    "json"
+  );
+  if (r.httpStatus !== 200 || !r.data?.data) return {};
+  return Object.fromEntries(r.data.data.map(e => [e.cve, parseFloat(e.epss ?? 0)]));
+}
+
+/* ── Helpers ── */
+function _enisaCveId(e) {
+  if (!e) return null;
+  const CVE_RE = /CVE-\d{4}-\d+/i;
+  const extract = s => { const m = String(s ?? "").match(CVE_RE); return m ? m[0].toUpperCase() : null; };
+
+  // Deep-scan any value recursively until a CVE pattern is found
+  function deepScan(node, depth = 0) {
+    if (depth > 4 || node == null) return null;
+    if (typeof node === "string") return extract(node);
+    if (Array.isArray(node)) {
+      for (const item of node) { const r = deepScan(item, depth + 1); if (r) return r; }
+    } else if (typeof node === "object") {
+      for (const v of Object.values(node)) { const r = deepScan(v, depth + 1); if (r) return r; }
+    }
+    return null;
+  }
+
+  // 1. Aliases first (most reliable source for CVE ID on ENISA endpoints)
+  if (e.aliases != null) {
+    const r = deepScan(e.aliases); if (r) return r;
+  }
+
+  // 2. Explicit CVE-named fields
+  for (const k of ["cveId", "cve", "vulnerabilityId"]) {
+    if (e[k]) { const r = extract(e[k]); if (r) return r; }
+  }
+
+  // 3. id / euvdId only if they contain a CVE pattern (not an EUVD-xxx id)
+  for (const k of ["id", "euvdId", "euvd_id"]) {
+    if (e[k]) { const r = extract(e[k]); if (r) return r; }
+  }
+
+  return null;
+}
+
+function _scoreHex(s) {
+  const n = parseFloat(s);
+  if (isNaN(n)) return null;
+  if (n >= 9) return "#ef4444";
+  if (n >= 7) return "#f59e0b";
+  if (n >= 4) return "#2563eb";
+  if (n > 0)  return "#22c55e";
+  return "#94a3b8";
+}
+
+/* ── Build one CVE mini-card ── */
+function _createLcveCard(cveId, score, dateStr, desc, epss, cwe, source) {
+const card = document.createElement("div"); card.className = "lcve-card";
+  if (cveId && /^CVE-/i.test(cveId)) card.dataset.cve = cveId;
+
+  const n        = parseFloat(score);
+  const scoreFmt = !isNaN(n) ? n.toFixed(1) : null;
+  const scoreHex = scoreFmt ? _scoreHex(n) : null;
+  const dateFmt  = dateStr ? new Date(dateStr).toLocaleDateString("en-GB") : "—";
+  const descTxt  = desc || "No description available.";
+
+  // Source badge
+  const SRC_META = {
+    cisa:      { label: "⚠️ CISA KEV",        cls: "lcve-source-cisa"      },
+    critical:  { label: "🟠 ENISA Critical",   cls: "lcve-source-critical"  },
+    nvd:       { label: "🆕 NVD Latest",        cls: "lcve-source-nvd"       },
+    "epss-top": { label: "📈 Top EPSS",         cls: "lcve-source-epss"      },
+  };
+  const sm = SRC_META[source] || { label: source || "?", cls: "lcve-source-nvd" };
+  const srcHtml = `<div><span class="lcve-source ${sm.cls}">${sm.label}</span></div>`;
+
+  // EPSS badge
+  let epssHtml = "";
+  if (epss != null && !isNaN(epss)) {
+    const s = _epssColorStyle(epss);
+    epssHtml = `<span class="lcve-epss" style="background:${s.background};color:${s.color};border-color:${s.borderColor}">EPSS ${(epss * 100).toFixed(2)}%</span>`;
+  }
+
+  // CWE chip
+  const cweId   = cwe ? String(cwe).trim().toUpperCase() : null;
+  const cweHtml = cweId
+    ? `<span class="lcve-cwe" data-cwe="${esc(cweId)}"><span class="lcve-cwe-id">${esc(cweId)}</span></span>`
+    : "";
+
+  const tagsHtml = (epssHtml || cweHtml)
+    ? `<div class="lcve-tags">${epssHtml}${cweHtml}</div>` : "";
+
+  card.innerHTML = `
+    ${srcHtml}
+    <div class="lcve-r1">
+      <span class="lcve-id">${esc(cveId || "—")}</span>
+      ${scoreHex ? `<span class="lcve-score" style="background:${scoreHex}">${scoreFmt}</span>` : ""}
+    </div>
+    <div class="lcve-date">${dateFmt}</div>
+    <div class="lcve-desc">${esc(descTxt)}</div>
+    ${tagsHtml}`;
+  return card;
+}
+
+/* ── Build unified shuffled carousel from multiple source arrays ──
+   Each entry: { items, mapper, sourceTag }
+   Returns original card elements for CWE enrichment. */
+function _renderUnifiedCarousel(id, sources) {
+  const el = document.getElementById(id); if (!el) return [];
+  el.innerHTML = "";
+
+  // Interleave: take one card per source in round-robin order
+  const queues = sources.map(({ items, mapper, sourceTag }) =>
+    items.map(item => ({ mapped: mapper(item), sourceTag }))
+  );
+  const merged = [];
+  const maxLen = Math.max(...queues.map(q => q.length), 0);
+  for (let i = 0; i < maxLen; i++)
+    queues.forEach(q => { if (i < q.length) merged.push(q[i]); });
+
+  if (!merged.length) {
+    el.textContent = "No data available.";
+    el.style.cssText = "font-family:var(--font-mono);font-size:11px;color:var(--text-muted);padding:8px 4px";
+    return [];
+  }
+
+  const CARD_W = 270, GAP = 10, SPEED = 38;
+  const originals = [];
+  const track = document.createElement("div"); track.className = "carousel-track";
+
+  for (const { mapped: { cveId, score, date, desc, epss, cwe }, sourceTag } of merged) {
+    const card = _createLcveCard(cveId, score, date, desc, epss, cwe, sourceTag);
+    originals.push(card);
+    track.appendChild(card);
+  }
+  originals.forEach(c => track.appendChild(c.cloneNode(true)));
+
+  const shift = originals.length * (CARD_W + GAP);
+  const dur   = Math.round(shift / SPEED);
+  track.style.setProperty("--carousel-shift", `-${shift}px`);
+  track.style.animationDuration = `${dur}s`;
+  el.appendChild(track);
+  return originals;
+}
+
+/* ── Enrich CWE chips in a carousel container with fetched names ──
+   Deduplicates fetches: one network call per unique CWE ID across all containers. */
+const _cweNameCache = {};
+async function _enrichLandingCwes(...containerIds) {
+  // Collect all unique CWE IDs across supplied containers
+  const allChips = [];
+  containerIds.forEach(id => {
+    document.getElementById(id)
+      ?.querySelectorAll(".lcve-cwe[data-cwe]")
+      .forEach(chip => allChips.push(chip));
+  });
+  const uniqueIds = [...new Set(allChips.map(c => c.dataset.cwe).filter(Boolean))];
+  if (!uniqueIds.length) return;
+
+  // Resolve names: local DB first, network fallback only for misses
+  const db = await getCweDb();
+  await Promise.allSettled(
+    uniqueIds
+      .filter(id => !_cweNameCache[id])
+      .map(async id => {
+        const num = id.replace(/^CWE-/i, "");
+        const name = db?.[num]?.n || await fetchCweName(id);
+        if (name) _cweNameCache[id] = name;
+      })
+  );
+
+  // Patch every chip (originals + clones via querySelectorAll)
+  containerIds.forEach(id => {
+    document.getElementById(id)
+      ?.querySelectorAll(".lcve-cwe[data-cwe]")
+      .forEach(chip => {
+        const name = _cweNameCache[chip.dataset.cwe];
+        if (!name || chip.querySelector(".lcve-cwe-name")) return;
+        const idEl  = chip.querySelector(".lcve-cwe-id"); if (!idEl) return;
+        const sep   = document.createElement("span"); sep.className = "lcve-cwe-sep"; sep.textContent = "—";
+        const nameEl = document.createElement("span"); nameEl.className = "lcve-cwe-name"; nameEl.textContent = name;
+        chip.appendChild(sep); chip.appendChild(nameEl);
+      });
+  });
+}
+
+let _landingRawSources = null;
+const _activeFeedSources = new Set(["nvd","epss-top","cisa","critical"]);
+
+function _rebuildFeedCarousel() {
+  if (!_landingRawSources) return;
+  const { nvd, epssTop, cisa, critical,
+          nvdMapper, epssMapper, cisaMapper, criticalMapper } = _landingRawSources;
+  const sources = [
+    { tag: "nvd",       items: nvd,      mapper: nvdMapper      },
+    { tag: "epss-top",  items: epssTop,  mapper: epssMapper     },
+    { tag: "cisa",      items: cisa,     mapper: cisaMapper     },
+    { tag: "critical",  items: critical, mapper: criticalMapper },
+  ]
+    .filter(s => _activeFeedSources.has(s.tag))
+    .map(s => ({ items: s.items, mapper: s.mapper, sourceTag: s.tag }));
+  _renderUnifiedCarousel("cards-unified", sources);
+  _enrichLandingCwes("cards-unified");
+}
+
+function _initFeedFilterChips() {
+  const container = document.getElementById("feedFilterChips"); if (!container) return;
+  const CHIPS = [
+    { tag: "nvd",       label: "🆕 NVD Latest"    },
+    { tag: "epss-top",  label: "📈 Top EPSS"       },
+    { tag: "cisa",      label: "⚠️ CISA KEV"       },
+    { tag: "critical",  label: "🟠 ENISA Critical" },
+  ];
+  container.innerHTML = "";
+  CHIPS.forEach(({ tag, label }) => {
+    const chip = document.createElement("span");
+    chip.className = "feed-filter-chip on";
+    chip.dataset.tag = tag;
+    const dot = document.createElement("span"); dot.className = "ffc-dot";
+    chip.appendChild(dot);
+    chip.appendChild(document.createTextNode(label));
+    chip.addEventListener("click", () => {
+      if (_activeFeedSources.has(tag)) { _activeFeedSources.delete(tag); chip.classList.remove("on"); }
+      else                             { _activeFeedSources.add(tag);    chip.classList.add("on");    }
+      _rebuildFeedCarousel();
+    });
+    container.appendChild(chip);
+  });
+}
+
+/* ── Build mappers + render curtain from already-processed data ── */
+function _renderCurtainFromData({ cisaData, enisaCrit, nvdCves, epssTop5, epssMap }) {
+  const cisaVulns = cisaData
+    ? [...(cisaData.vulnerabilities || [])].sort((a,b) => (b.dateAdded||"").localeCompare(a.dateAdded||"")).slice(0,5)
+    : [];
+
+  const cisaMapper = v => ({
+    cveId: v.cveID, score: null, date: v.dateAdded,
+    desc:  v.shortDescription || null,
+    epss:  epssMap[v.cveID] ?? null,
+    cwe:   Array.isArray(v.cwes) ? v.cwes[0] : (v.cweID || null),
+  });
+  const criticalMapper = v => ({
+    cveId: _enisaCveId(v),
+    score: v.baseScore ?? v.cvssScore ?? null,
+    date:  v.datePublished || v.published || null,
+    desc:  v.description  || v.summary  || null,
+    epss:  epssMap[_enisaCveId(v)] ?? null,
+    cwe:   null,
+  });
+  const nvdMapper = v => {
+    const m = v.metrics;
+    const s = m?.cvssMetricV31?.[0]?.cvssData?.baseScore
+           ?? m?.cvssMetricV40?.[0]?.cvssData?.baseScore
+           ?? m?.cvssMetricV30?.[0]?.cvssData?.baseScore
+           ?? m?.cvssMetricV2?.[0]?.cvssData?.baseScore ?? null;
+    const descs = v.descriptions || [];
+    const desc  = (descs.find(d => d.lang === "en") || descs[0])?.value || null;
+    const cwes  = (v.weaknesses || []).flatMap(w => (w.description || []).map(d => d.value)).filter(c => /^CWE-\d+$/.test(c));
+    return { cveId: v.id, score: s, date: v.published, desc, epss: epssMap[v.id] ?? null, cwe: cwes[0] || null };
+  };
+  const epssMapper = v => ({
+    cveId: v.cve, score: v.score, date: v.date,
+    desc: v.desc, epss: parseFloat(v.epss), cwe: v.cwe,
+  });
+
+  _landingRawSources = {
+    nvd: nvdCves, epssTop: epssTop5, cisa: cisaVulns, critical: enisaCrit.slice(0, 5),
+    nvdMapper, epssMapper, cisaMapper, criticalMapper,
+  };
+  _rebuildFeedCarousel();
+  _enrichLandingCwes("cards-unified");
+}
+
+/* ── Main init ── */
+async function initLanding() {
+  if (_landingInitDone) return;
+  _landingInitDone = true;
+  _initFeedFilterChips();
+  _renderSkeletons("cards-unified", 8);
+
+  // Event delegation — covers originals and clones
+  document.getElementById("cards-unified")?.addEventListener("click", e => {
+    const card = e.target.closest(".lcve-card[data-cve]");
+    if (!card) return;
+    const input = document.getElementById("searchInput"); if (!input) return;
+    input.value = card.dataset.cve;
+    input.dispatchEvent(new Event("input"));
+    document.getElementById("searchBtn")?.click();
+  });
+
+  // Try sessionStorage cache first (avoids all network requests on reload)
+  const cached = _curtainLoad();
+  if (cached) {
+    if (cached.cisaData) _cisaKevCache = cached.cisaData; // restore module-level CISA cache
+    _renderCurtainFromData(cached);
+    return;
+  }
+
+  // Progressive render — each source triggers a carousel rebuild on arrival
+  const ps = { cisaData: null, enisaCrit: [], nvdCves: [], epssTop5: [], epssMap: {} };
+
+  // Debounce: avoids double DOM rebuild when 2 sources resolve near-simultaneously
+  let _partialTimer = null;
+  const _partial = () => { clearTimeout(_partialTimer); _partialTimer = setTimeout(() => _renderCurtainFromData(ps), 60); };
+
+  const p1 = getCisaKev().then(d => { ps.cisaData = d || null; if (d) _cisaKevCache = d; _partial(); }).catch(() => {});
+  const p2 = _fetchEnisaList("critical").then(d => { ps.enisaCrit = d || []; _partial(); }).catch(() => {});
+  const p3 = _fetchNvdLatest().then(d => { ps.nvdCves = d || []; _partial(); }).catch(() => {});
+
+  // EPSS top5 — sequential NVD lookups, enriches after initial render
+  const p5 = _fetchEpssTop5().then(async raw => {
+    if (!raw?.length) return;
+    const details = [];
+    for (const e of raw) {
+      details.push(await proxyFetch(`https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=${encodeURIComponent(e.cve)}`, "json"));
+      await wait(300);
+    }
+    ps.epssTop5 = raw.map((e, i) => {
+      const nvd = details[i]?.vulnerabilities?.[0]?.cve || null;
+      const m = nvd?.metrics;
+      const score = m?.cvssMetricV31?.[0]?.cvssData?.baseScore
+                 ?? m?.cvssMetricV40?.[0]?.cvssData?.baseScore
+                 ?? m?.cvssMetricV30?.[0]?.cvssData?.baseScore
+                 ?? m?.cvssMetricV2?.[0]?.cvssData?.baseScore ?? null;
+      const descs = nvd?.descriptions || [];
+      const desc = (descs.find(d => d.lang === "en") || descs[0])?.value || null;
+      const cwes = (nvd?.weaknesses || []).flatMap(w => (w.description || []).map(d => d.value)).filter(c => /^CWE-\d+$/.test(c));
+      return { cve: e.cve, epss: e.epss, date: nvd?.published || null, score, desc, cwe: cwes[0] || null };
+    });
+    // Batch EPSS now that CISA + NVD IDs are known
+    const batchIds = new Set([
+      ...(ps.cisaData?.vulnerabilities || []).slice(0, 5).map(v => v.cveID).filter(Boolean),
+      ...ps.nvdCves.map(v => v.id).filter(Boolean),
+    ]);
+    ps.epssMap = await _fetchEpssBatch([...batchIds]).catch(() => ({}));
+    raw.forEach(e => { ps.epssMap[e.cve] = parseFloat(e.epss); });
+    _partial();
+  }).catch(() => {});
+
+  // Save to sessionStorage cache once everything has settled
+  Promise.allSettled([p1, p2, p3, p5]).then(() => _curtainSave({ ...ps }));
+}
+
+/* Refresh charts on theme toggle */
+  new MutationObserver(() => { refreshAllEpssColors(); _rebuildFeedCarousel(); })
+  .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });

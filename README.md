@@ -2,7 +2,7 @@
 
 > A client-side, zero-dependency web application that aggregates CVE vulnerability data in real time from multiple official sources — no installation required / no account required.
 
-![Version](https://img.shields.io/badge/version-v1.4-blue)
+![Version](https://img.shields.io/badge/version-v1.5-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 
@@ -35,7 +35,10 @@ Everything runs **100% client-side** — no backend, no installation, no data se
 - **Smart refresh** — The per-card ↻ button re-queries only failed/errored sources, including a silent retry of CVEList for reserved-but-unpublished CVEs.
 - **Light / Dark theme** — Persisted in `localStorage`.
 - **Zero dependencies** — Vanilla JS, custom CSS, no framework, no bundler.
-- **CVEs persistence** — up to 50 CVEs stored: the 25 most recent in `localStorage` (TTL: 7 days, survives tab close), the 25 oldest in `sessionStorage` (TTL: 4 hours, cleared on tab close).
+- **CVEs persistence** — up to 25 CVEs stored in `localStorage` (TTL: 7 days, survives tab close and browser restart). Landing curtain feed data is cached separately in `sessionStorage` (TTL: 1 hour).
+- **CAPEC associations** — each CWE chip expands to show related CAPEC attack patterns, pulled from the local CWE database.
+- **EPSS trend indicator** — the EPSS badge shows a month-over-month evolution arrow (↑ / ↓ / stable) so you can see whether exploitation probability is rising.
+
 
 ---
 

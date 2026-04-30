@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>User Guide — CVE Analysis Tool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css">
 <script>(function(){document.documentElement.setAttribute("data-theme",localStorage.getItem("theme")||"light")})();</script>
 <style>
@@ -301,6 +301,9 @@ code {
     <div class="toc-title">Contents</div>
     <ul class="toc-list">
       <li class="toc-item"><a class="toc-link" href="#intro">Introduction</a></li>
+      <li class="toc-item"><a class="toc-link" href="#landing">Landing feed</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#landing-cards">Feed cards</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#landing-filter">Feed filter</a></li>
       <li class="toc-item"><a class="toc-link" href="#search">Searching for CVEs</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#single">Single CVE lookup</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#batch">Batch search</a></li>
@@ -356,6 +359,46 @@ code {
         <span>All data is fetched in real time from external APIs and pages. Results depend on those
         services being available and may differ from what you'd find navigating to each source directly.
         A CORS proxy is used to bypass browser restrictions — see the Technical Docs for details.</span>
+      </div>
+    </section>
+    
+    <section class="doc-section" id="landing">
+      <div class="section-eyebrow">Home screen</div>
+      <h2 class="section-title">Landing feed</h2>
+      <p class="doc-p">
+        Before any search, the page displays a <strong>dynamic banner</strong> aggregating live vulnerability
+        intelligence from four sources simultaneously. It retracts automatically when you search for a CVE and
+        can be toggled back via the <code>▼ Latest vulnerabilities</code> handle at the top of the results area.
+      </p>
+
+      <h3 class="section-subtitle" id="landing-cards">Feed cards</h3>
+      <p class="doc-p">
+        The banner shows a horizontally scrolling carousel of mini-cards drawn from four feeds, interleaved
+        in round-robin order:
+      </p>
+      <ul style="font-size:14px;line-height:1.9;padding-left:20px;max-width:680px;margin-bottom:14px">
+        <li><strong>🆕 NVD Latest</strong> — the most recently published CVEs in the NVD (last 3–14 days).</li>
+        <li><strong>📈 Top EPSS</strong> — the 5 CVEs with the highest current EPSS score, enriched with their NVD description and CVSS data.</li>
+        <li><strong>⚠️ CISA KEV</strong> — the 5 most recently added entries from CISA's Known Exploited Vulnerabilities catalog.</li>
+        <li><strong>🟠 ENISA Critical</strong> — the latest entries from ENISA's critical vulnerabilities feed.</li>
+      </ul>
+      <p class="doc-p">
+        Each card shows the CVE ID, CVSS score (colour-coded), publication date, a short description, an EPSS
+        badge (when available), and a CWE chip. CWE names are resolved from the local database without any
+        additional network request. Hovering the carousel pauses the scroll. <strong>Clicking any card
+        instantly loads it into the search results</strong>, as if you had typed the CVE ID manually.
+      </p>
+
+      <h3 class="section-subtitle" id="landing-filter">Feed filter</h3>
+      <p class="doc-p">
+        Four toggle chips above the carousel let you show or hide each feed independently. Disabling a feed
+        removes its cards from the carousel in real time without reloading any data.
+      </p>
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>All feed data is cached in <code>sessionStorage</code> for one hour. On a page reload within
+        that window, the banner renders instantly with no network requests. The cache is cleared when the
+        tab is closed.</span>
       </div>
     </section>
 
@@ -596,7 +639,12 @@ code {
       <p class="doc-p">
         Multiple sources reporting the same CWE are merged. CWEs are sorted numerically by ID.
       </p>
-
+      <p class="doc-p">
+        When the local CWE database associates a weakness with known attack patterns, one or more
+        <strong>CAPEC chips</strong> appear below the CWE row (preceded by a ↳ arrow). A single CAPEC
+        is shown directly; when multiple exist, they are collapsed behind a toggle button. Each chip links
+        to the CAPEC detail page on capec.mitre.org.
+      </p>
       <h3 class="section-subtitle" id="epss">⑥ EPSS Scoring</h3>
       <p class="doc-p">
         EPSS (Exploit Prediction Scoring System) provides a data‑driven probability that a
@@ -605,6 +653,13 @@ code {
       </p>
       <p class="doc-p">
         The EPSS is defined an maintained by FIRST (https://www.first.org/epss/).
+      </p>
+      <p class="doc-p">
+        The badge also shows a <strong>trend arrow</strong> comparing the current score to the value from
+        one month ago: <strong>↑</strong> means the exploitation probability is rising, <strong>↓</strong>
+        means it is falling, and <strong>–</strong> means it is stable (change below 0.1 %). Hovering the
+        badge reveals the exact delta. The colour of the badge shifts from neutral blue-grey toward red as
+        the score increases.
       </p>
 
       <h3 class="section-subtitle" id="refs">⑦ References</h3>
@@ -684,10 +739,10 @@ code {
         To avoid re-fetching all sources on every page return, searched CVEs are automatically saved to <code>sessionStorage</code> and <code>localStorage</code>. When you navigate to another page and come back to the search page, all previous CVE cards are restored — in the same order — without any user action required.
       </p>
       <p class="doc-p">
-        50 CVEs are automatically stored: 25 most recent in <code>localStorage</code> and the 25 oldest in <code>sessionStorage</code>.
+        Up to <strong>25 CVEs</strong> are stored in <code>localStorage</code> (TTL: 7 days). When a 26th is added, the oldest is removed automatically. Cards are rebuilt instantly from this cache on the next visit — no network request is made until the TTL expires.
       </p>
       <p class="doc-p">
-        Once the TTL expires, or when the browser tab is closed, the session cache is cleared and a fresh fetch is performed on the next visit only for the 25 oldest CVEs. The 25 most recent CVEs are rebuilt instantly from <code>localStorage</code> without any network request.
+        The landing feed (CISA KEV, ENISA, NVD latest, EPSS top 5) is cached separately in <code>sessionStorage</code> with a 1-hour TTL and is cleared when the tab is closed.
       </p>
       <div class="callout callout-info">
         <span class="callout-icon">ℹ️</span>
@@ -763,7 +818,7 @@ code {
         advisory before taking remediation decisions. CVSS scores, descriptions and sources reported here are informational only.
       </p>
       <p class="doc-p">
-        <strong>Session cache staleness:</strong> Cached card data is reused for up to 4 hours. If a CVE was updated by a source (new CVSS score, new advisory) within that window, the cached version will not reflect the change until the TTL expires or the card is deleted and re-searched.
+        <strong>Cache staleness:</strong> CVE card data is reused for up to 7 days. If a CVE was updated by a source (new CVSS score, new advisory) within that window, the cached version will not reflect the change until the TTL expires or the card is deleted and re-searched. The landing feed cache (CISA KEV, ENISA, NVD latest) expires after 1 hour.
       </p>
     </section>
 

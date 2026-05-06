@@ -31,7 +31,10 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5.0.0
-
+        
+      - name: Add CNAME file
+        run: echo "cve-analysis-tool.fr" > CNAME
+        
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3.0.1
         with:

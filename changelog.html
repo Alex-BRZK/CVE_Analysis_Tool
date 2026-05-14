@@ -264,17 +264,53 @@
 
   <div class="timeline">
 
+
     <!-- ─── CURRENT RELEASE ─────────────────────────────────────── -->
     <div class="release">
       <div class="release-dot current"><div class="release-dot-inner"></div></div>
       <div class="release-card current-release">
         <div class="release-card-top">
           <div>
-            <div class="release-version">v1.5 — Current</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Landing curtain cache · Storage simplification · CAPECs</div>
+            <div class="release-version">v1.6 — Current</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Global environmental requirements · Env score badges · NVD pre-filled link</div>
           </div>
           <div class="release-version-badges">
             <span class="release-tag tag-current">Current</span>
+            <span class="release-date">14/05/2026</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🧮</span><span class="change-text"><strong>CVSS calculator</strong> — CIA Requirements added in the options panelplus a 🧮 button that opens a modal displaying all available CVSS change metrics.</span></li>
+              <li class="change-item"><span class="change-icon">🏷️</span><span class="change-text"><strong>Env score sub-badge</strong> — a compact <code>Env X.X</code> badge appears below each applicable CVSS base score badge (preceded by a ↳ arrow), colour-coded by severity, and sized to its content.</span></li>
+            </ul>
+            <div class="change-group-label">Improvement</div>
+              <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🔗</span><span class="change-text"><strong>FIRST calculator pre-filled link</strong> — clicking the <code>Env X.X</code> or <code>CVSS X.X</code>badge opens the FIRST reference CVSS calculator (v3.x and v4.0) or the NVD calculator (v2.0) in a new tab, with the base vector and environmental changes or requirements.</span></li>
+            </ul>
+            <div class="change-group-label">Fix</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">🩹</span><span class="change-text"><strong>LibreOffice link fix</strong> — CAT now tries the main LibreOffice website first and switches to a mirror automatically if the page doesn't load correctly.</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ─── 1.5  ─────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot latest"><div class="release-dot-inner"></div></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v1.5</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Landing curtain cache · Storage simplification · CAPECs</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
             <span class="release-date">30/04/2026</span>
           </div>
         </div>
@@ -303,7 +339,7 @@
     <!-- ─── v1.4 ─────────────────────────────────────── -->
     <div class="release">
       <div class="release-dot latest"><div class="release-dot-inner"></div></div>
-      <div class="release-card current-release">
+      <div class="release-card">
         <div class="release-card-top">
           <div>
             <div class="release-version">v1.4</div>

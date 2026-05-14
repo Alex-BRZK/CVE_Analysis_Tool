@@ -205,6 +205,7 @@ pre .c { color: var(--text-muted); }            /* comment */
       <li class="toc-item"><a class="toc-link sub" href="#cwe-logic">CWE collection</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#ref-logic">Reference filtering</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#epss-logic">EPSS scoring</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#env-logic">Environmental requirements</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#capec-logic">CAPEC associations</a></li>
 
 
@@ -307,7 +308,7 @@ pre .c { color: var(--text-muted); }            /* comment */
     <span class="meta-label">Top EPSS</span>
     <span class="meta-val"><code>api.first.org/data/v1/epss?order=!epss&limit=5</code> — top 5 by EPSS score. Each CVE is then individually enriched via NVD (score, description, CWE) with a 300 ms inter-request delay to stay within rate limits.</span>
     <span class="meta-label">CISA KEV</span>
-    <span class="meta-val">Reuses the module-level CISA KEV cache (<code>_cisaKevCache</code>) already populated by the card fetch path. The 5 most recently added entries (sorted by <code>dateAdded</code>) are shown.</span>
+    <span class="meta-val">The 5 most recently added entries (sorted by <code>dateAdded</code>) are shown.</span>
     <span class="meta-label">ENISA Critical</span>
     <span class="meta-val"><code>euvdservices.enisa.europa.eu/api/criticalvulnerabilities</code> — up to 5 entries. A parallel request to the most critical new vulnerabilities.</span>
   </div>
@@ -584,12 +585,13 @@ pre .c { color: var(--text-muted); }            /* comment */
         </div>
         <div class="source-meta-grid">
           <span class="meta-label">URL pattern</span>
-          <span class="meta-val meta-url">https://www.libreoffice.org/about-us/security/advisories/{cve-lowercase}/</span>
+          <span class="meta-val meta-url">https://cs.libreoffice.org/about-us/security/advisories/{cve-lowercase}/</span>
           <span class="meta-label">Method</span>
           <span class="meta-val">GET HTML</span>
         </div>
         <p class="doc-p" style="margin-bottom:0">
           Only a description is provided by this editor, so it is extracted from HTML tags.
+          There was an issue with <code>https://www.libreoffice.org/about-us/security/advisories/{cve-lowercase}/</code> domain, maybe some desynchronisation between regional deploy. <code>cs.libreoffice.org</code> will now be use in case of the first link will redirect to <code>https://www.libreoffice.org/security/</code>.
         </p>
       </div>
 
@@ -770,6 +772,30 @@ pre .c { color: var(--text-muted); }            /* comment */
         EPSS scoring is retrieved from <code>first.org/epss</code>. 
         One function queries the official EPSS API and retrieves the latest daily score, then is compare to the score a month ago, depending of evolution observed an indication will show the trend.
       </p>
+
+      <h3 class="section-subtitle" id="env-logic">Environmental requirements</h3>
+      <p class="doc-p">
+        A calculator holds values for all overridable metrics (CR, IR, AR plus
+        all modified base metrics). It is persisted in <code>localStorage</code>
+        and loaded on startup. Any change recomputes an environmental sub-score.
+      </p>
+      <p class="doc-p">
+        <strong>Score computation per version:</strong>
+      </p>
+      <ul style="font-size:13px;line-height:1.9;padding-left:20px;max-width:720px;margin-bottom:14px;color:var(--text)">
+        <li><strong>CVSS v2.0</strong> : applies CR/IR/AR weights to the base CIA metrics via the NIST adjusted impact formula, then recomputes exploitability. Output rounded to one decimal.</li>
+        <li><strong>CVSS v3.0 / v3.1</strong> : Modified metrics (MAV, MAC, MPR, MUI, MS, MC, MI, MA) override their base counterparts when set. The modified impact sub-score uses CR/IR/AR weights; scope change is respected. Output rounded via the CVSS round-up function.</li>
+        <li><strong>CVSS v4.0</strong> : Computes six severity levels (EQ1–EQ6) from the vector, looks up the base score in a 218-entry table, then interpolates within each level to produce a precise score. Supports all v4.0 modified metrics.</li>      
+      </ul>
+      <p class="doc-p">
+        <strong>UI — compact panel vs. full modal.</strong> The Options panel exposes only the three
+        Security Requirements (CR/IR/AR) plus a <em>🧮</em> button that opens the full modal. The modal
+        renders all four groups via :
+        <em>Security Requirements</em>, <em>Modified Base — Common (v3+v4)</em>,
+        <em>Modified Base — v3.x</em>, and <em>Modified Base — v4.0</em>.
+        All temporal and unset modified metrics are left as <code>X</code> / <code>ND</code>.
+      </p>
+
       <h3 class="section-subtitle" id="capec-logic">CAPEC associations</h3>
       <p class="doc-p">
         CAPEC (Common Attack Pattern Enumeration and Classification) entries are sourced from the local
@@ -777,8 +803,8 @@ pre .c { color: var(--text-muted); }            /* comment */
         array of CAPEC IDs that are known to exploit that weakness.
       </p>
       <p class="doc-p">
-        When CWE chips are rendered, <code>createCweSection()</code> reads the <code>capecs</code> array from
-        the resolved DB entry. A single CAPEC is shown as a direct link chip below the CWE row. When multiple
+        When CWE chips are rendered, the <code>capecs</code> array from
+        the resolved DB entry is read. A single CAPEC is shown as a direct link chip below the CWE row. When multiple
         CAPECs exist, they are collapsed behind a <code>N CAPECs ▾</code> toggle button to keep the UI compact.
         Each chip links to the corresponding CAPEC detail page on capec.mitre.org. No additional network
         request is made — all data comes from the pre-built local database.
@@ -842,6 +868,8 @@ pre .c { color: var(--text-muted); }            /* comment */
           <span class="meta-val">JSON array of active source names. (<code>localStorage</code>)</span>
           <span class="meta-label">cat_fields</span>
           <span class="meta-val">JSON object mapping field keys to booleans. (<code>localStorage</code>)</span>
+          <span class="meta-label">cat_req</span>
+          <span class="meta-val">JSON object with CR, IR, AR keys — Environmental requirement settings. (<code>localStorage</code>)</span>
           <span class="meta-label">theme</span>
           <span class="meta-val"><code>"light"</code> or <code>"dark"</code>. (<code>localStorage</code>)</span>
         </div>

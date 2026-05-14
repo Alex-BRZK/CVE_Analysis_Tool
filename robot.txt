@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://cve-analysis-tool.fr/sitemap.xml

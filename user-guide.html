@@ -319,6 +319,7 @@ code {
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#options">Options panel</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#cve-navigator">CVE navigator</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#env-requirements">Environmental requirements</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#field-filter">Field visibility</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#filter">Source filter</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#sort">Sort</a></li>
@@ -622,8 +623,9 @@ code {
         </div>
       </div>
       <p class="doc-p">
-        Clicking a CVSS badge opens the corresponding NVD CVSS calculator pre-filled with the vector
-        string, allowing you to inspect each metric in detail.
+        Clicking a CVSS badge opens the <strong>FIRST CVSS calculator</strong> (the reference
+        implementation) pre-filled with the vector string, allowing you to inspect each metric in
+        detail. This applies to all versions: v2.0, v3.0, v3.1, and v4.0.
       </p>
       <p class="doc-p">
         CAT supports <strong>CVSS v2.0, v3.0, v3.1, and v4.0</strong>. The scores are sorted by decreasing value (highest first); ties are broken by version (v4.0 &gt; v3.1 &gt; v3.0 &gt; v2.0). Different scores from
@@ -689,6 +691,52 @@ code {
       <div class="callout callout-tip">
         <span class="callout-icon">💡</span>
         <span>The navigator list always reflects the current card order — if you apply a sort, the order in the list updates accordingly.</span>
+      </div>
+
+
+      <h3 class="section-subtitle" id="env-requirements">Environmental requirements</h3>
+      <p class="doc-p">
+        The <em>Requirements (Environmental)</em> section in the Options panel is split into two tiers.
+      </p>
+      <p class="doc-p">
+        <strong>Compact panel — Security Requirements (CR / IR / AR).</strong> Three toggles let you
+        set the business importance of Confidentiality, Integrity, and Availability for your environment
+        (<code>X</code> Not Defined · <code>L</code> Low · <code>M</code> Medium · <code>H</code> High).
+        Once any value differs from <code>X</code>, CAT instantly recomputes an environmental score for
+        every <strong>CVSS v2, v3 and v4</strong> badge across all active cards.
+      </p>
+      <p class="doc-p">
+        <strong>Full modal — Modified Base Metrics (🧮).</strong> Clicking the <em>🧮 Modified base metrics…</em>
+        button opens a modal exposing all optional overrides organised in four groups:
+      </p>
+      <ul style="font-size:14px;line-height:1.9;padding-left:20px;max-width:680px;margin-bottom:14px">
+        <li><strong>Security Requirements</strong> — CR, IR, AR (same as the compact panel, synced).</li>
+        <li><strong>Modified Base — Common (v3 + v4)</strong> — MAV (Attack Vector), MAC (Attack Complexity), MPR (Privileges Required).</li>
+        <li><strong>Modified Base — v3.x</strong> — MUI (User Interaction), MS (Scope), MC/MI/MA (CIA impact).</li>
+        <li><strong>Modified Base — v4.0</strong> — MAT (Attack Requirements), MUI (User Interaction), MVC/MVI/MVA (Vulnerable System CIA), MSC/MSI/MSA (Subsequent System CIA, including Safety override).</li>
+      </ul>
+      <p class="doc-p">
+        Hovering any option chip shows a contextual tooltip explaining its effect on the score. All chips
+        in the panel and the modal are synchronised — changing a value in one place updates the other.
+      </p>
+      <p class="doc-p">
+        The adjusted score appears as a compact <code>Env X.X</code> badge below the base score badge,
+        preceded by a ↳ arrow and colour-coded with the same severity scale. Clicking that badge opens the
+        <strong>FIRST CVSS calculator</strong> (v3.x / v4.0) or the <strong>NVD calculator</strong> (v2.0)
+        in a new tab, pre-filled with the base vector and your settings — all temporal metrics are left as
+        Not Defined.
+      </p>
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>All requirements and modified metrics apply globally to all cards at once and are persisted in
+        <code>localStorage</code>. Setting everything back to <code>X</code> (Not Defined) removes all
+        sub-badges. The <em>↺ Reset all metrics</em> button inside the modal resets every metric at once.</span>
+      </div>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span>Start with CR/IR/AR in the compact panel for a quick risk adjustment. Use the 🧮 modal when
+        you need to override specific base metrics (e.g. set MAV to Local if the vulnerability is not
+        network-reachable in your environment) to get a more accurate environmental score.</span>
       </div>
 
       <h3 class="section-subtitle" id="field-filter">Field visibility</h3>

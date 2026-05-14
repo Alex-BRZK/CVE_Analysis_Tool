@@ -7,10 +7,10 @@
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * This program is provided in the hope that it will be useful, but 
+ * it comes WITHOUT ANY WARRANTY, not even a guarantee that it works 
+ * properly or is suitable for any specific use. For more information, 
+ * see the GNU General Public License..
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
@@ -29,7 +29,7 @@ const SOURCE_CONFIG = [
   { name:"Ubuntu",      url: cve=>`https://ubuntu.com/security/${cve}` },
   { name:"Microsoft",   url: cve=>`https://msrc.microsoft.com/update-guide/vulnerability/${cve}` },
   { name:"Amazon",      url: cve=>`https://explore.alas.aws.amazon.com/${cve}.html` },
-  { name:"LibreOffice", url: cve=>`https://www.libreoffice.org/about-us/security/advisories/${cve.toLowerCase()}/` },
+  { name:"LibreOffice", url: cve=>`https://cs.libreoffice.org/about-us/security/advisories/${cve.toLowerCase()}/` },
   { name:"PostgreSQL",  url: cve=>`https://www.postgresql.org/support/security/${cve}/` },
   { name:"Oracle",      url: cve=>`https://www.oracle.com/security-alerts/alert-${cve.toLowerCase()}.html` },
   { name:"Xen",         url: _=>`https://xenbits.xen.org/xsa/xsa.json` },
@@ -47,7 +47,7 @@ const DESC_SOURCE_URLS = {
   Ubuntu:     cve=>`https://ubuntu.com/security/cves/${cve}.json`,
   Microsoft:  cve=>{const y=cve.split("-")[1];return`https://msrc.microsoft.com/csaf/vex/${y}/msrc_${cve.toLowerCase()}.json`},
   Amazon:     cve=>`https://explore.alas.aws.amazon.com/${cve}.html`,
-  LibreOffice:cve=>`https://www.libreoffice.org/about-us/security/advisories/${cve.toLowerCase()}/`,
+  LibreOffice:cve=>`https://cs.libreoffice.org/about-us/security/advisories/${cve.toLowerCase()}/`,
   PostgreSQL: cve=>`https://www.postgresql.org/support/security/${cve}/`,
   Oracle:     cve=>`https://www.oracle.com/security-alerts/alert-${cve.toLowerCase()}.html`,
   Xen:        _=>`https://xenbits.xen.org/xsa/xsa.json`,
@@ -122,7 +122,6 @@ function toggleTheme() {
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem("theme", next);
 }
-(function(){ document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || "light"); })();
 
 /* =================================================================
    TEXT UTILITIES
@@ -131,7 +130,7 @@ function extractCveIds(s) { return [...new Set((s.match(/CVE-\d{4}-\d{4,7}/gi) |
 
 /* Build a shareable URL containing the given CVE IDs as a query string */
 function buildPermalink(cves) {
-  const base = `${location.origin}${location.pathname}`;
+  const base = location.origin + location.pathname.replace(/index\.html$/i, '');
   return `${base}?cves=${[...cves].join(",")}`;
 }
 function esc(s) { return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
@@ -753,9 +752,18 @@ async function fetchAmazonData(cve) {
   }
   return { desc, cvssList, networkError: false, pageFound: true };
 }
+// After:
 async function fetchLibreOfficeData(cve) {
-  const url = `https://www.libreoffice.org/about-us/security/advisories/${cve.toLowerCase()}/`;
-  const result = await proxyFetchWithStatus(url, "text");
+  const cveLow = cve.toLowerCase();
+  const primaryUrl  = `https://www.libreoffice.org/about-us/security/advisories/${cveLow}/`;
+  const fallbackUrl = `https://cs.libreoffice.org/about-us/security/advisories/${cveLow}/`;
+  let result = await proxyFetchWithStatus(primaryUrl, "text");
+  // Detect redirect to generic security index (no CVE-specific content returned)
+  if (result.httpStatus === 200 && result.data &&
+      !result.data.includes(cveLow) && !result.data.includes(cve.toUpperCase())) {
+    result = await proxyFetchWithStatus(fallbackUrl, "text");
+  }
+  const url = fallbackUrl; // chip/badge always points to the reliable cs. mirror
   if (result.httpStatus === 0) return { desc: null, networkError: true, pageFound: false };
   if (!result.data || result.httpStatus === 404) return { desc: null, networkError: false, pageFound: false };
   const doc = new DOMParser().parseFromString(result.data, "text/html");
@@ -1238,12 +1246,12 @@ function createDescRow(sources, text) {
   row.appendChild(left); row.appendChild(right); return row;
 }
 function createCvssBadge({ version, score, vector, sources }) {
-  const ve = encodeURIComponent(vector || "");
+  // FIRST calculator — hash fragment, no URL encoding needed
   const urlMap = {
-    "v2.0": `https://nvd.nist.gov/vuln-metrics/cvss/v2-calculator?vector=${ve}&source=NIST`,
-    "v3.0": `https://nvd.nist.gov/vuln-metrics/cvss/v3-calculator?vector=${ve}&version=3.0&source=NIST`,
-    "v3.1": `https://nvd.nist.gov/vuln-metrics/cvss/v3-calculator?vector=${ve}&version=3.1&source=NIST`,
-    "v4.0": `https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator?vector=${ve}&version=4.0&source=NIST`,
+    "v2.0": `https://nvd.nist.gov/vuln-metrics/cvss/v2-calculator?vector=${encodeURIComponent(vector||"")}&source=NIST`,
+    "v3.0": `https://www.first.org/cvss/calculator/3.0#CVSS:3.0/${vector}`,
+    "v3.1": `https://www.first.org/cvss/calculator/3.1#CVSS:3.1/${vector}`,
+    "v4.0": `https://www.first.org/cvss/calculator/4.0#CVSS:4.0/${vector}`,
   };
   const a = document.createElement("a"); a.className = `cvss-badge ${cvssColorClass(score)}`;
   a.dataset.sources = sources.join(",");
@@ -1252,8 +1260,13 @@ function createCvssBadge({ version, score, vector, sources }) {
   if (vector) { a.target = "_blank"; a.title = `Vector: ${vector}`; }
   else        { a.title = `Score provided by ${sources.join(", ")} — no vector available`; }
   a.innerHTML = `<span class="version">CVSS ${esc(version)}</span><span class="score">${esc(String(score))}</span><span class="sources">${esc(sources.join(", "))}</span>`;
-  return a;
+  const wrap=document.createElement("div");
+  wrap.className="cvss-badge-wrap";
+  wrap.dataset.cvssVersion=version;
+  wrap.appendChild(a);
+  return wrap;
 }
+
 function createCweSection(cweList) {
   if (!cweList.length) return null;
   const section = document.createElement("div"); section.className = "cwe-section";
@@ -1368,7 +1381,6 @@ const cveData = new Map();
 
 async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
   const container = document.getElementById("cveResults");
-  document.getElementById("templateCard")?.remove();
   const skeleton = createSkeletonCard(cve);
   container.prepend(skeleton);
 
@@ -1481,6 +1493,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
     renderRefsBody(refsBody, refsCountEl, refs);
 
     applyFilter();
+    applyRequirements();
   }
 
   async function refreshCwe() {
@@ -1810,6 +1823,655 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
 }
 
 /* =================================================================
+   ENVIRONMENTAL REQUIREMENTS — global Options panel
+   ================================================================= */
+const _C3W_R = {
+  AV:{N:0.85,A:0.62,L:0.55,P:0.2}, AC:{L:0.77,H:0.44},
+  PR_U:{N:0.85,L:0.62,H:0.27}, PR_C:{N:0.85,L:0.68,H:0.5},
+  UI:{N:0.85,R:0.62}, CIA:{N:0,L:0.22,H:0.56}, REQ:{X:1,L:0.5,M:1,H:1.5},
+};
+function _cR3(v){const n=Math.round(v*100000);return n%10000===0?n/100000:(Math.floor(n/10000)+1)/10;}
+
+function cvss3ReqScore(vec, state) {
+  const w=_C3W_R;
+  const CR=w.REQ[state.CR]??1, IR=w.REQ[state.IR]??1, AR=w.REQ[state.AR]??1;
+  const ov=(base,k)=>{const v=state[k];return(v&&v!=='X')?v:base;};
+  const mAV=ov(vec.AV,'MAV'),mAC=ov(vec.AC,'MAC'),mPR=ov(vec.PR,'MPR');
+  const mUI=ov(vec.UI,'MUI'),mS=ov(vec.S||'U','MS');
+  const mC=ov(vec.C,'MC'),mI=ov(vec.I,'MI'),mA=ov(vec.A,'MA');
+  const ISC=Math.min(1-(1-(w.CIA[mC]??0)*CR)*(1-(w.CIA[mI]??0)*IR)*(1-(w.CIA[mA]??0)*AR),0.915);
+  const mImp=mS==='C'?7.52*(ISC-0.029)-3.25*Math.pow(ISC-0.02,15):6.42*ISC;
+  if(mImp<=0)return 0;
+  const wPR=(mS==='C'?w.PR_C:w.PR_U)[mPR]??0;
+  const exp=8.22*(w.AV[mAV]??0)*(w.AC[mAC]??0)*wPR*(w.UI[mUI]??0);
+  const raw=mS==='C'?Math.min(1.08*(mImp+exp),10):Math.min(mImp+exp,10);
+  return Math.min(_cR3(raw),10);
+}
+
+const _C2W_R = {
+  AV:{L:0.395,A:0.646,N:1.0}, AC:{H:0.35,M:0.61,L:0.71},
+  Au:{M:0.45,S:0.56,N:0.704}, CIA:{N:0,P:0.275,C:0.660},
+  REQ:{X:1.0,L:0.5,M:1.0,H:1.51},
+};
+
+function cvss2ReqScore(vec, state) {
+  const w = _C2W_R;
+  const CR = w.REQ[state.CR] ?? 1.0;
+  const IR = w.REQ[state.IR] ?? 1.0;
+  const AR = w.REQ[state.AR] ?? 1.0;
+  const adjImp = Math.min(10, 10.41*(1-(1-(w.CIA[vec.C]??0)*CR)*(1-(w.CIA[vec.I]??0)*IR)*(1-(w.CIA[vec.A]??0)*AR)));
+  if (adjImp <= 0) return 0;
+  const exp = 20*(w.AV[vec.AV]??0)*(w.AC[vec.AC]??0)*(w.Au[vec.Au]??0);
+  return Math.round(Math.min(10,(0.6*adjImp+0.4*exp-1.5)*1.176)*10)/10;
+}
+
+/* CVSS 4.0 score lookup table (EQ1+EQ2+EQ3+EQ4+EQ5+EQ6) — FIRST reference */
+// Localisation : remplacer le bloc   const _V4_SCORES={...};
+const _V4_SCORES={
+  "000000":10,"000001":9.9,"000010":9.8,"000011":9.5,"000020":9.5,"000021":9.2,
+  "000100":10,"000101":9.6,"000110":9.3,"000111":8.7,"000120":9.1,"000121":8.1,
+  "000200":9.3,"000201":9,"000210":8.9,"000211":8,"000220":8.1,"000221":6.8,
+  "001000":9.8,"001001":9.5,"001010":9.5,"001011":9.2,"001020":9,"001021":8.4,
+  "001100":9.3,"001101":9.2,"001110":8.9,"001111":8.1,"001120":8.1,"001121":6.5,
+  "001200":8.8,"001201":8,"001210":7.8,"001211":7,"001220":6.9,"001221":4.8,
+  "002001":9.2,"002011":8.2,"002021":7.2,"002101":7.9,"002111":6.9,"002121":5,
+  "002201":6.9,"002211":5.5,"002221":2.7,
+  "010000":9.9,"010001":9.7,"010010":9.5,"010011":9.2,"010020":9.2,"010021":8.5,
+  "010100":9.5,"010101":9.1,"010110":9,"010111":8.3,"010120":8.4,"010121":7.1,
+  "010200":9.2,"010201":8.1,"010210":8.2,"010211":7.1,"010220":7.2,"010221":5.3,
+  "011000":9.5,"011001":9.3,"011010":9.2,"011011":8.5,"011020":8.5,"011021":7.3,
+  "011100":9.2,"011101":8.2,"011110":8,"011111":7.2,"011120":7,"011121":5.9,
+  "011200":8.4,"011201":7,"011210":7.1,"011211":5.2,"011220":5,"011221":3,
+  "012001":8.6,"012011":7.5,"012021":5.2,"012101":7.1,"012111":5.2,"012121":2.9,
+  "012201":6.3,"012211":2.9,"012221":1.7,
+  "100000":9.8,"100001":9.5,"100010":9.4,"100011":8.7,"100020":9.1,"100021":8.1,
+  "100100":9.4,"100101":8.9,"100110":8.6,"100111":7.4,"100120":7.7,"100121":6.4,
+  "100200":8.7,"100201":7.5,"100210":7.4,"100211":6.3,"100220":6.3,"100221":4.9,
+  "101000":9.4,"101001":8.9,"101010":8.8,"101011":7.7,"101020":7.6,"101021":6.7,
+  "101100":8.6,"101101":7.6,"101110":7.4,"101111":5.8,"101120":5.9,"101121":5,
+  "101200":7.2,"101201":5.7,"101210":5.7,"101211":5.2,"101220":5.2,"101221":2.5,
+  "102001":8.3,"102011":7,"102021":5.4,"102101":6.5,"102111":5.8,"102121":2.6,
+  "102201":5.3,"102211":2.1,"102221":1.3,
+  "110000":9.5,"110001":9,"110010":8.8,"110011":7.6,"110020":7.6,"110021":7,
+  "110100":9,"110101":7.7,"110110":7.5,"110111":6.2,"110120":6.1,"110121":5.3,
+  "110200":7.7,"110201":6.6,"110210":6.8,"110211":5.9,"110220":5.2,"110221":3,
+  "111000":8.9,"111001":7.8,"111010":7.6,"111011":6.7,"111020":6.2,"111021":5.8,
+  "111100":7.4,"111101":5.9,"111110":5.7,"111111":5.7,"111120":4.7,"111121":2.3,
+  "111200":6.1,"111201":5.2,"111210":5.7,"111211":2.9,"111220":2.4,"111221":1.6,
+  "112001":7.1,"112011":5.9,"112021":3,"112101":5.8,"112111":2.6,"112121":1.5,
+  "112201":2.3,"112211":1.3,"112221":0.6,
+  "200000":9.3,"200001":8.7,"200010":8.6,"200011":7.2,"200020":7.5,"200021":5.8,
+  "200100":8.6,"200101":7.4,"200110":7.4,"200111":6.1,"200120":5.6,"200121":3.4,
+  "200200":7,"200201":5.4,"200210":5.2,"200211":4,"200220":4,"200221":2.2,
+  "201000":8.5,"201001":7.5,"201010":7.4,"201011":5.5,"201020":6.2,"201021":5.1,
+  "201100":7.2,"201101":5.7,"201110":5.5,"201111":4.1,"201120":4.6,"201121":1.9,
+  "201200":5.3,"201201":3.6,"201210":3.4,"201211":1.9,"201220":1.9,"201221":0.8,
+  "202001":6.4,"202011":5.1,"202021":2,"202101":4.7,"202111":2.1,"202121":1.1,
+  "202201":2.4,"202211":0.9,"202221":0.4,
+  "210000":8.8,"210001":7.5,"210010":7.3,"210011":5.3,"210020":6,"210021":5,
+  "210100":7.3,"210101":5.5,"210110":5.9,"210111":4,"210120":4.1,"210121":2,
+  "210200":5.4,"210201":4.3,"210210":4.5,"210211":2.2,"210220":2,"210221":1.1,
+  "211000":7.5,"211001":5.5,"211010":5.8,"211011":4.5,"211020":4,"211021":2.1,
+  "211100":6.1,"211101":5.1,"211110":4.8,"211111":1.8,"211120":2,"211121":0.9,
+  "211200":4.6,"211201":1.8,"211210":1.7,"211211":0.7,"211220":0.8,"211221":0.2,
+  "212001":5.3,"212011":2.4,"212021":1.4,"212101":2.4,"212111":1.2,"212121":0.5,
+  "212201":1,"212211":0.3,"212221":0.1,
+};
+
+/* CVSS 4.0 — FIRST reference data (maxSeverity + maxComposed vectors) */
+const _V4_MAX_SEV = {
+  eq1:    {0:1,   1:4,   2:5},
+  eq2:    {0:1,   1:2},
+  eq3eq6: {0:{0:7,1:6}, 1:{0:8,1:8}, 2:{1:10}},
+  eq4:    {0:6,   1:5,   2:4},
+  eq5:    {0:1,   1:1,   2:1},
+};
+const _V4_MAX_VEC = {
+  eq1: {
+    0:['AV:N/PR:N/UI:N/'],
+    1:['AV:A/PR:N/UI:N/','AV:N/PR:L/UI:N/','AV:N/PR:N/UI:P/'],
+    2:['AV:P/PR:N/UI:N/','AV:A/PR:L/UI:P/'],
+  },
+  eq2: {
+    0:['AC:L/AT:N/'],
+    1:['AC:H/AT:N/','AC:L/AT:P/'],
+  },
+  eq3: {
+    0:{0:['VC:H/VI:H/VA:H/CR:H/IR:H/AR:H/'],
+       1:['VC:H/VI:H/VA:L/CR:M/IR:M/AR:H/','VC:H/VI:H/VA:H/CR:M/IR:M/AR:M/']},
+    1:{0:['VC:L/VI:H/VA:H/CR:H/IR:H/AR:H/','VC:H/VI:L/VA:H/CR:H/IR:H/AR:H/'],
+       1:['VC:L/VI:H/VA:L/CR:H/IR:M/AR:H/','VC:L/VI:H/VA:H/CR:H/IR:M/AR:M/',
+          'VC:H/VI:L/VA:H/CR:M/IR:H/AR:M/','VC:H/VI:L/VA:L/CR:M/IR:H/AR:H/',
+          'VC:L/VI:L/VA:H/CR:H/IR:H/AR:M/']},
+    2:{1:['VC:L/VI:L/VA:L/CR:H/IR:H/AR:H/']},
+  },
+  eq4: {
+    0:['SC:H/SI:S/SA:S/'],
+    1:['SC:H/SI:H/SA:H/'],
+    2:['SC:L/SI:L/SA:L/'],
+  },
+  eq5: {
+    0:['E:A/'],
+    1:['E:P/'],
+    2:['E:U/'],
+  },
+};
+
+/**
+ * CVSS 4.0 environmental score from CR/IR/AR only (all M-metrics = X → use base).
+ * Uses FIRST lookup table. Missing combinations (impossible vectors) return null.
+ * Note: does not implement mean-distance interpolation; result within ±0.2 of true score.
+ */
+/* ─── CVSS 4.0 environmental score — algorithme officiel FIRST §7.4 ─────────
+   Port fidèle de cvss4/dist/bundle.umd.js (npm:cvss4).
+   Autonome, sans dépendance réseau, 100% conforme FIRST.
+   ─────────────────────────────────────────────────────────────────────────── */
+function cvss4ReqScore(vec, state) {
+  const mG=(sk,vk)=>{const sv=state[sk];return(sv&&sv!=='X')?sv:vec[vk||sk];};
+  const sel = {
+    AV:vec.AV||'N', PR:vec.PR||'N', UI:vec.UI||'N',
+    AC:vec.AC||'L', AT:vec.AT||'N',
+    VC:vec.VC||'N', VI:vec.VI||'N', VA:vec.VA||'N',
+    SC:vec.SC||'N', SI:vec.SI||'N', SA:vec.SA||'N',
+    E: vec.E  ||'X',
+    CR:state.CR||'X', IR:state.IR||'X', AR:state.AR||'X',
+    MAV:mG('MAV'),  MAC:mG('MAC'),  MAT:mG('MAT'),
+    MPR:mG('MPR'),  MUI:mG('MUI4','MUI'),
+    MVC:mG('MVC'),  MVI:mG('MVI'),  MVA:mG('MVA'),
+    MSC:mG('MSC'),  MSI:mG('MSI'),  MSA:mG('MSA'),
+  };
+
+  // m() — resolve effective metric value (handles X defaults + modified metrics)
+  const m = (metric) => {
+    const v = sel[metric];
+    if (metric==='E'  && v==='X') return 'A';
+    if (metric==='CR' && v==='X') return 'H';
+    if (metric==='IR' && v==='X') return 'H';
+    if (metric==='AR' && v==='X') return 'H';
+    // Modified base metric overrides base (if defined and not X)
+    const mod = sel['M'+metric];
+    if (mod !== undefined && mod !== 'X') return mod;
+    return v;
+  };
+
+  // Zero-impact shortcut
+  if (['VC','VI','VA','SC','SI','SA'].every(k=>m(k)==='N')) return 0;
+
+  // ── Macro vector (EQ1–EQ6) ──────────────────────────────────────────────
+  let eq1,eq2,eq3,eq4,eq5,eq6;
+  // EQ1
+  if (m('AV')==='N'&&m('PR')==='N'&&m('UI')==='N') eq1=0;
+  else if ((m('AV')==='N'||m('PR')==='N'||m('UI')==='N')&&m('AV')!=='P') eq1=1;
+  else eq1=2;
+  // EQ2
+  eq2=(m('AC')==='L'&&m('AT')==='N')?0:1;
+  // EQ3
+  if (m('VC')==='H'&&m('VI')==='H') eq3=0;
+  else if (m('VC')==='H'||m('VI')==='H'||m('VA')==='H') eq3=1;
+  else eq3=2;
+  // EQ4 — uses MSI/MSA for safety override
+  if (m('MSI')==='S'||m('MSA')==='S') eq4=0;
+  else if (m('SC')==='H'||m('SI')==='H'||m('SA')==='H') eq4=1;
+  else eq4=2;
+  // EQ5
+  eq5=m('E')==='A'?0:m('E')==='P'?1:2;
+  // EQ6
+  eq6=((m('CR')==='H'&&m('VC')==='H')||(m('IR')==='H'&&m('VI')==='H')||(m('AR')==='H'&&m('VA')==='H'))?0:1;
+
+  const macroKey=`${eq1}${eq2}${eq3}${eq4}${eq5}${eq6}`;
+  let value=_V4_SCORES[macroKey];
+  if (value==null) return null;
+
+  // ── Next-lower macro scores (NaN if combination does not exist) ──────────
+  const s=k=>_V4_SCORES[k]??NaN;
+  const eq1NL=s(`${eq1+1}${eq2}${eq3}${eq4}${eq5}${eq6}`);
+  const eq2NL=s(`${eq1}${eq2+1}${eq3}${eq4}${eq5}${eq6}`);
+  let eq3eq6NL=NaN;
+  if (eq3===0&&eq6===0) {
+    const l=s(`${eq1}${eq2}${eq3}${eq4}${eq5}${eq6+1}`);
+    const r=s(`${eq1}${eq2}${eq3+1}${eq4}${eq5}${eq6}`);
+    eq3eq6NL=(!isNaN(l)&&!isNaN(r))?(l>r?l:r):(!isNaN(l)?l:r);
+  } else if (eq3===0&&eq6===1) eq3eq6NL=s(`${eq1}${eq2}${eq3+1}${eq4}${eq5}${eq6}`);
+  else if (eq3===1&&eq6===0) eq3eq6NL=s(`${eq1}${eq2}${eq3}${eq4}${eq5}${eq6+1}`);
+  else if (eq3===1&&eq6===1) eq3eq6NL=s(`${eq1}${eq2}${eq3+1}${eq4}${eq5}${eq6+1}`);
+  else eq3eq6NL=s(`${eq1}${eq2}${eq3+1}${eq4}${eq5}${eq6+1}`);
+  const eq4NL=s(`${eq1}${eq2}${eq3}${eq4+1}${eq5}${eq6}`);
+  const eq5NL=s(`${eq1}${eq2}${eq3}${eq4}${eq5+1}${eq6}`);
+
+  // ── Build combined max vectors for severity distance computation ──────────
+  const getMV=(eq,idx)=>_V4_MAX_VEC[`eq${eq}`][macroKey[eq-1]];
+  const eq1M=getMV(1), eq2M=getMV(2);
+  const eq3eq6M=(_V4_MAX_VEC.eq3[macroKey[2]]||{})[macroKey[5]]||[];
+  const eq4M=getMV(4), eq5M=getMV(5);
+
+  const maxVecs=[];
+  for(const a of eq1M) for(const b of eq2M) for(const c of eq3eq6M)
+    for(const d of eq4M) for(const e of eq5M) maxVecs.push(a+b+c+d+e);
+
+  // Metric ordinal levels (0 = highest severity)
+  const LV={
+    AV:{N:0,A:.1,L:.2,P:.3}, PR:{N:0,L:.1,H:.2}, UI:{N:0,P:.1,A:.2},
+    AC:{L:0,H:.1}, AT:{N:0,P:.1},
+    VC:{H:0,L:.1,N:.2}, VI:{H:0,L:.1,N:.2}, VA:{H:0,L:.1,N:.2},
+    SC:{H:.1,L:.2,N:.3}, SI:{S:0,H:.1,L:.2,N:.3}, SA:{S:0,H:.1,L:.2,N:.3},
+    CR:{H:0,M:.1,L:.2},  IR:{H:0,M:.1,L:.2},  AR:{H:0,M:.1,L:.2},
+  };
+
+  // Extract metric value from a max_vector string (e.g. "AV:N/PR:L/...")
+  const extr=(metric,str)=>{
+    const i=str.indexOf(metric+':');
+    if(i===-1) return null;
+    const sub=str.slice(i+metric.length+1);
+    const j=sub.indexOf('/');
+    return j>0?sub.slice(0,j):sub;
+  };
+
+  // Find the max vector that dominates the actual vector (all distances ≥ 0)
+  const METRICS=['AV','PR','UI','AC','AT','VC','VI','VA','SC','SI','SA','CR','IR','AR'];
+  let dist={};
+  for(const mv of maxVecs){
+    const d={};
+    let ok=true;
+    for(const k of METRICS){
+      const lv=LV[k]; if(!lv) continue;
+      const vm=lv[m(k)]??0, mm=lv[extr(k,mv)]??0;
+      d[k]=vm-mm;
+      if(d[k]<0){ok=false;break;}
+    }
+    if(ok){dist=d;break;}
+  }
+
+  // Aggregate severity distances per EQ group
+  const dEQ1=(dist.AV??0)+(dist.PR??0)+(dist.UI??0);
+  const dEQ2=(dist.AC??0)+(dist.AT??0);
+  const dEQ3eq6=(dist.VC??0)+(dist.VI??0)+(dist.VA??0)+(dist.CR??0)+(dist.IR??0)+(dist.AR??0);
+  const dEQ4=(dist.SC??0)+(dist.SI??0)+(dist.SA??0);
+  // EQ5 severity distance is always 0 per FIRST spec
+
+  // ── Mean-distance computation ────────────────────────────────────────────
+  const STEP=0.1;
+  const mxEQ1 =(_V4_MAX_SEV.eq1[eq1]   ||0)*STEP;
+  const mxEQ2 =(_V4_MAX_SEV.eq2[eq2]   ||0)*STEP;
+  const mxEQ3eq6=((_V4_MAX_SEV.eq3eq6[eq3]||{})[eq6]||0)*STEP;
+  const mxEQ4 =(_V4_MAX_SEV.eq4[eq4]   ||0)*STEP;
+
+  let n=0, meanDist=0;
+  const add=(avail,dist,maxSev)=>{
+    if(isNaN(avail)) return;
+    n++;
+    meanDist+=avail*(maxSev>0?dist/maxSev:0);
+  };
+  add(value-eq1NL,   dEQ1,    mxEQ1);
+  add(value-eq2NL,   dEQ2,    mxEQ2);
+  add(value-eq3eq6NL,dEQ3eq6, mxEQ3eq6);
+  add(value-eq4NL,   dEQ4,    mxEQ4);
+  add(value-eq5NL,   0,       1); // EQ5 percent always 0
+
+  if(n>0) value-=meanDist/n;
+  return Math.max(0,Math.min(10,Math.round(value*10)/10));
+}
+
+function parseCvssVec(str){
+  return Object.fromEntries(String(str).replace(/^CVSS:[^/]+\//i,'').split('/').map(p=>p.split(':')));
+}
+
+const _reqState={
+  CR:'X',IR:'X',AR:'X',                   // security requirements (v2/v3/v4)
+  MAV:'X',MAC:'X',MPR:'X',                 // shared modified base (v3+v4)
+  MUI:'X',MS:'X',MC:'X',MI:'X',MA:'X',    // v3.x modified base
+  MAT:'X',MUI4:'X',                        // v4.0 specific (MAT + v4 MUI)
+  MVC:'X',MVI:'X',MVA:'X',                // v4.0 vulnerable system
+  MSC:'X',MSI:'X',MSA:'X',               // v4.0 subsequent system
+};
+function _saveReq(){localStorage.setItem('cat_req',JSON.stringify(_reqState));}
+function _loadReq(){try{Object.assign(_reqState,JSON.parse(localStorage.getItem('cat_req')||'{}'));}catch{}}
+
+function _buildNvdEnvUrl(ver, rawVec, state) {
+  if (!rawVec) return '#';
+  const X=k=>state[k]||'X';
+  if (ver==='v3.0'||ver==='v3.1') {
+    const v=ver.slice(1);
+    const env=`E:X/RL:X/RC:X/CR:${X('CR')}/IR:${X('IR')}/AR:${X('AR')}/MAV:${X('MAV')}/MAC:${X('MAC')}/MPR:${X('MPR')}/MUI:${X('MUI')}/MS:${X('MS')}/MC:${X('MC')}/MI:${X('MI')}/MA:${X('MA')}`;
+    return `https://www.first.org/cvss/calculator/${v}#CVSS:${v}/${rawVec}/${env}`;
+  }
+  if (ver==='v2.0') {
+    const nd=x=>x==='X'?'ND':x;
+    const env=`CDP:ND/TD:ND/CR:${nd(X('CR'))}/IR:${nd(X('IR'))}/AR:${nd(X('AR'))}`;
+    return `https://nvd.nist.gov/vuln-metrics/cvss/v2-calculator?vector=${encodeURIComponent(`${rawVec}/${env}`)}&source=NIST`;
+  }
+  if (ver==='v4.0') {
+    const env=`E:X/CR:${X('CR')}/IR:${X('IR')}/AR:${X('AR')}/MAV:${X('MAV')}/MAC:${X('MAC')}/MAT:${X('MAT')}/MPR:${X('MPR')}/MUI:${X('MUI4')}/MVC:${X('MVC')}/MVI:${X('MVI')}/MVA:${X('MVA')}/MSC:${X('MSC')}/MSI:${X('MSI')}/MSA:${X('MSA')}`;
+    return `https://www.first.org/cvss/calculator/4.0#CVSS:4.0/${rawVec}/${env}`;
+  }
+  return '#';
+}
+
+function applyRequirements() {
+  const {CR:cr,IR:ir,AR:ar}=_reqState;
+  const active=Object.values(_reqState).some(v=>v!=='X');
+  document.querySelectorAll('.cvss-badge-wrap').forEach(wrap=>{
+    if(!active){wrap.querySelector('.cvss-env-row')?.remove();return;}
+    const badge=wrap.querySelector('.cvss-badge');
+    const ver=badge?.dataset.cvssVersion;
+    if(ver!=='v3.0'&&ver!=='v3.1'&&ver!=='v2.0'&&ver!=='v4.0'){
+      wrap.querySelector('.cvss-env-row')?.remove();return;
+    }
+    const rawVec=badge?.title?.startsWith('Vector: ')?badge.title.slice(8):null;
+    if(!rawVec){wrap.querySelector('.cvss-env-row')?.remove();return;}
+    const vec=parseCvssVec(rawVec);
+    const s=ver==='v2.0'?cvss2ReqScore(vec,_reqState):
+          ver==='v4.0'?cvss4ReqScore(vec,_reqState):
+          cvss3ReqScore(vec,_reqState);
+    if(s===null){wrap.querySelector('.cvss-env-row')?.remove();return;}
+    let row=wrap.querySelector('.cvss-env-row');
+    let sub;
+    if(!row){
+      row=document.createElement('div');row.className='cvss-env-row';
+      const arr=document.createElement('span');arr.className='cvss-env-arrow';arr.textContent='\u21b3';
+      sub=document.createElement('a');sub.className='cvss-env-badge';
+      sub.target='_blank';sub.rel='noopener noreferrer';
+      row.appendChild(arr);row.appendChild(sub);wrap.appendChild(row);
+    } else {sub=row.querySelector('.cvss-env-badge');}
+    sub.className=`cvss-env-badge ${cvssColorClass(s)}`;
+    sub.textContent=`Env ${ver} ${s.toFixed(1)}`;
+    sub.title=`Environmental score — CR:${cr} IR:${ir} AR:${ar}`;
+    sub.href=_buildNvdEnvUrl(ver,rawVec,_reqState);
+  });
+}
+
+// Remplace les 3 const existantes par:
+const _REQ_GROUPS=[
+  {label:'Security Requirements',items:[
+    {id:'CR',l:'Confidentiality Req.',  opts:['X','L','M','H']},
+    {id:'IR',l:'Integrity Req.', opts:['X','L','M','H']},
+    {id:'AR',l:'Availability Req.', opts:['X','L','M','H']},
+  ]},
+  {label:'Modified Base — Common (v3+v4)',items:[
+    {id:'MAV',l:'Attack Vector',      opts:['X','N','A','L','P']},
+    {id:'MAC',l:'Attack Complexity',  opts:['X','L','H']},
+    {id:'MPR',l:'Privileges Req.',    opts:['X','N','L','H']},
+  ]},
+  {label:'Modified Base — v3.x',items:[
+    {id:'MUI',l:'User Interaction',   opts:['X','N','R']},
+    {id:'MS', l:'Scope',              opts:['X','U','C']},
+    {id:'MC', l:'Confidentiality',    opts:['X','N','L','H']},
+    {id:'MI', l:'Integrity',          opts:['X','N','L','H']},
+    {id:'MA', l:'Availability',       opts:['X','N','L','H']},
+  ]},
+  {label:'Modified Base — v4.0',items:[
+    {id:'MAT', l:'Attack Req.',       opts:['X','N','P']},
+    {id:'MUI4',l:'User Interaction',  opts:['X','N','P','A']},
+    {id:'MVC', l:'Vuln. Conf.',       opts:['X','H','L','N']},
+    {id:'MVI', l:'Vuln. Integ.',      opts:['X','H','L','N']},
+    {id:'MVA', l:'Vuln. Avail.',      opts:['X','H','L','N']},
+    {id:'MSC', l:'Sub. Conf.',        opts:['X','H','L','N']},
+    {id:'MSI', l:'Sub. Integ.',       opts:['X','S','H','L','N']},
+    {id:'MSA', l:'Sub. Avail.',       opts:['X','S','H','L','N']},
+  ]},
+];
+
+/* ── Floating tooltip manager ── */
+const _tip = (() => {
+  let el = null;
+  const ensure = () => {
+    if (el) return;
+    el = document.createElement('div'); el.id = 'env-tip';
+    document.body.appendChild(el);
+  };
+  return {
+    show(text, x, y) { ensure(); el.textContent=text; el.style.left=x+'px'; el.style.top=y+'px'; el.style.opacity='1'; },
+    move(x, y)       { if(el){el.style.left=x+'px';el.style.top=y+'px';} },
+    hide()           { if(el) el.style.opacity='0'; },
+  };
+})();
+
+const _M_TIPS = {
+  CR: {
+    X: 'Not Defined — no effect on the score; base CIA weights are used unchanged.',
+    L: 'Low — loss of Confidentiality likely has only a limited adverse effect on the organization (e.g., minor, contained breach).',
+    M: 'Medium — loss of Confidentiality likely has a serious adverse effect (e.g., significant data exposure or reputational harm).',
+    H: 'High — loss of Confidentiality likely has a catastrophic adverse effect (e.g., regulatory breach, critical data exfiltration).',
+  },
+  IR: {
+    X: 'Not Defined — no effect on the score; base CIA weights are used unchanged.',
+    L: 'Low — loss of Integrity likely has only a limited adverse effect on the organization.',
+    M: 'Medium — loss of Integrity likely has a serious adverse effect on the organization.',
+    H: 'High — loss of Integrity likely has a catastrophic adverse effect (e.g., safety-critical data tampering).',
+  },
+  AR: {
+    X: 'Not Defined — no effect on the score; base CIA weights are used unchanged.',
+    L: 'Low — loss of Availability likely has only a limited adverse effect on the organization.',
+    M: 'Medium — loss of Availability likely has a serious adverse effect on the organization.',
+    H: 'High — loss of Availability likely has a catastrophic adverse effect (e.g., critical system downtime).',
+  },
+  MAV: {
+    X: 'Not Defined — inherits the base Attack Vector value.',
+    N: 'Network — the vulnerable component is bound to the network stack and reachable remotely across the Internet. Highest attack reach.',
+    A: 'Adjacent — the attack is limited to a logically adjacent network (e.g., same VLAN, Bluetooth, or local subnet).',
+    L: 'Local — exploitation requires local access (e.g., logged-in user, local file execution). Not network-reachable.',
+    P: 'Physical — the attacker must physically touch or manipulate the hardware. Lowest attack reach.',
+  },
+  MAC: {
+    X: 'Not Defined — inherits the base Attack Complexity value.',
+    L: 'Low — no specialized conditions are required; the attacker can exploit the vulnerability reliably and repeatedly without preparation.',
+    H: 'High — success depends on conditions beyond the attacker\'s control (e.g., race conditions, specific configurations, prior reconnaissance).',
+  },
+  MPR: {
+    X: 'Not Defined — inherits the base Privileges Required value.',
+    N: 'None — no prior authentication or privileges are needed; exploitation is possible as an anonymous or unauthenticated user.',
+    L: 'Low — basic user-level privileges are required (e.g., a standard account limited to own files or settings).',
+    H: 'High — elevated or administrative privileges with significant control over the vulnerable component are required.',
+  },
+  MUI: {
+    X: 'Not Defined — inherits the base User Interaction value.',
+    N: 'None — no user participation is required; the attacker exploits the vulnerability independently.',
+    R: 'Required — a user must take a specific action (e.g., click a link, open a file) before exploitation is possible.',
+  },
+  MS: {
+    X: 'Not Defined — inherits the base Scope value.',
+    U: 'Unchanged — the exploited vulnerability impacts only the vulnerable component; no other authority or component is affected.',
+    C: 'Changed — a successful attack can impact resources managed by a different security authority beyond the vulnerable component.',
+  },
+  MC: {
+    X: 'Not Defined — inherits the base Confidentiality Impact value.',
+    N: 'None — no confidentiality impact; no data is disclosed to unauthorized parties.',
+    L: 'Low — limited information disclosure; the attacker gains some restricted data but cannot control what is exposed.',
+    H: 'High — total loss of confidentiality; the attacker can read all data on the component including credentials and sensitive information.',
+  },
+  MI: {
+    X: 'Not Defined — inherits the base Integrity Impact value.',
+    N: 'None — no integrity impact; data cannot be modified by the attacker.',
+    L: 'Low — the attacker can modify some data but lacks full control over what is modified or the extent of changes.',
+    H: 'High — total loss of integrity; the attacker can modify any data on the component, leading to complete compromise.',
+  },
+  MA: {
+    X: 'Not Defined — inherits the base Availability Impact value.',
+    N: 'None — no availability impact; the component remains fully operational.',
+    L: 'Low — reduced performance or intermittent outages; the attacker cannot fully deny access but can degrade service.',
+    H: 'High — total loss of availability; the attacker can fully deny access to the component causing a complete service outage.',
+  },
+  MAT: {
+    X: 'Not Defined — inherits the base Attack Requirements value (v4.0).',
+    N: 'None — a successful attack does not require specific deployment or execution conditions; exploitable in the default state.',
+    P: 'Present — exploitation requires specific conditions to be in place (e.g., a particular configuration, software state, or race condition).',
+  },
+  MUI4: {
+    X: 'Not Defined — inherits the base User Interaction value (v4.0).',
+    N: 'None — no human interaction is required beyond the attacker; exploitation is fully automated or self-triggered.',
+    P: 'Passive — the targeted user interacts with the vulnerable system in the normal course of activity (e.g., browsing a page that silently triggers the exploit).',
+    A: 'Active — the targeted user must consciously perform specific actions with the attacker\'s payload (e.g., explicitly open a malicious file or confirm a dialog).',
+  },
+  MVC: {
+    X: 'Not Defined — inherits the base Vulnerable System Confidentiality value (v4.0).',
+    H: 'High — total loss of confidentiality on the Vulnerable System; all data including sensitive credentials is exposed.',
+    L: 'Low — limited confidentiality loss on the Vulnerable System; partial data disclosure without full attacker control.',
+    N: 'None — no confidentiality impact on the Vulnerable System.',
+  },
+  MVI: {
+    X: 'Not Defined — inherits the base Vulnerable System Integrity value (v4.0).',
+    H: 'High — total loss of integrity on the Vulnerable System; the attacker can modify any data or code.',
+    L: 'Low — limited integrity loss; the attacker can modify some data on the Vulnerable System without full control.',
+    N: 'None — no integrity impact on the Vulnerable System.',
+  },
+  MVA: {
+    X: 'Not Defined — inherits the base Vulnerable System Availability value (v4.0).',
+    H: 'High — total loss of availability on the Vulnerable System; the component is completely rendered inoperable.',
+    L: 'Low — degraded performance on the Vulnerable System; partial denial without complete service loss.',
+    N: 'None — no availability impact on the Vulnerable System.',
+  },
+  MSC: {
+    X: 'Not Defined — inherits the base Subsequent System Confidentiality value (v4.0).',
+    H: 'High — total loss of confidentiality on the Subsequent System; all data managed by other components or authorities is exposed.',
+    L: 'Low — limited confidentiality loss on the Subsequent System; partial data disclosure beyond the vulnerable component.',
+    N: 'None — no confidentiality impact on the Subsequent System.',
+  },
+  MSI: {
+    X: 'Not Defined — inherits the base Subsequent System Integrity value (v4.0).',
+    S: 'Safety — integrity impacts on the Subsequent System could cause serious physical injury or worse (e.g., industrial control or medical device compromise). Forces score to maximum.',
+    H: 'High — total loss of integrity on the Subsequent System; the attacker can arbitrarily modify data across other components.',
+    L: 'Low — limited integrity loss on the Subsequent System; partial modification beyond the vulnerable component.',
+    N: 'None — no integrity impact on the Subsequent System.',
+  },
+  MSA: {
+    X: 'Not Defined — inherits the base Subsequent System Availability value (v4.0).',
+    S: 'Safety — availability impacts could cause serious physical injury or worse (e.g., denial of critical safety systems). Forces score to maximum.',
+    H: 'High — total loss of availability on the Subsequent System; other components or systems become fully unreachable.',
+    L: 'Low — some availability degradation on the Subsequent System.',
+    N: 'None — no availability impact on the Subsequent System.',
+  },
+};
+
+// Impact severity of each option on the environmental score (blue = X/neutral)
+const _CHIP_SEVERITY = {
+  CR:  { X:'blue', L:'yellow', M:'orange', H:'red' },
+  IR:  { X:'blue', L:'yellow', M:'orange', H:'red' },
+  AR:  { X:'blue', L:'yellow', M:'orange', H:'red' },
+  MAV: { X:'blue', N:'red', A:'orange', L:'yellow', P:'green' },
+  MAC: { X:'blue', L:'red', H:'green' },
+  MPR: { X:'blue', N:'red', L:'orange', H:'green' },
+  MUI: { X:'blue', N:'red', R:'green' },
+  MS:  { X:'blue', U:'orange', C:'red' },
+  MC:  { X:'blue', N:'green', L:'orange', H:'red' },
+  MI:  { X:'blue', N:'green', L:'orange', H:'red' },
+  MA:  { X:'blue', N:'green', L:'orange', H:'red' },
+  MAT: { X:'blue', N:'red', P:'green' },
+  MUI4:{ X:'blue', N:'red', P:'orange', A:'green' },
+  MVC: { X:'blue', H:'red', L:'yellow', N:'green' },
+  MVI: { X:'blue', H:'red', L:'yellow', N:'green' },
+  MVA: { X:'blue', H:'red', L:'yellow', N:'green' },
+  MSC: { X:'blue', H:'red', L:'yellow', N:'green' },
+  MSI: { X:'blue', S:'red', H:'orange', L:'yellow', N:'green' },
+  MSA: { X:'blue', S:'red', H:'orange', L:'yellow', N:'green' },
+};
+
+const _METRIC_DESC = {
+  CR:   'Confidentiality Requirement — customizes the score based on the relative importance of confidentiality to your organization.',
+  IR:   'Integrity Requirement — customizes the score based on the relative importance of integrity to your organization.',
+  AR:   'Availability Requirement — customizes the score based on the relative importance of availability to your organization.',
+  MAV:  'Modified Attack Vector — overrides the base AV. Reflects the context by which exploitation is possible; the more remote the attacker, the higher the score.',
+  MAC:  'Modified Attack Complexity — overrides the base AC. Describes conditions beyond the attacker\'s control that must exist to exploit the vulnerability.',
+  MPR:  'Modified Privileges Required — overrides the base PR. Describes the privilege level an attacker must possess before successfully exploiting the vulnerability.',
+  MUI:  'Modified User Interaction (v3.x) — overrides the base UI. Captures whether a human user other than the attacker must participate in the compromise.',
+  MS:   'Modified Scope (v3.x) — overrides the base S. Indicates whether a successful attack can impact components beyond the vulnerable component.',
+  MC:   'Modified Confidentiality Impact (v3.x) — overrides the base C. Measures the impact on confidentiality of the vulnerable component.',
+  MI:   'Modified Integrity Impact (v3.x) — overrides the base I. Measures the impact on trustworthiness and veracity of information.',
+  MA:   'Modified Availability Impact (v3.x) — overrides the base A. Measures the impact on the availability of the vulnerable component.',
+  MAT:  'Modified Attack Requirements (v4.0) — overrides the base AT. Captures prerequisite deployment and execution conditions that enable the attack.',
+  MUI4: 'Modified User Interaction (v4.0) — overrides the base UI (v4 scale). Captures whether a human user must participate in the compromise.',
+  MVC:  'Modified Vulnerable System Confidentiality (v4.0) — overrides the base VC. Measures confidentiality impact on the vulnerable system.',
+  MVI:  'Modified Vulnerable System Integrity (v4.0) — overrides the base VI. Measures integrity impact on the vulnerable system.',
+  MVA:  'Modified Vulnerable System Availability (v4.0) — overrides the base VA. Measures availability impact on the vulnerable system.',
+  MSC:  'Modified Subsequent System Confidentiality (v4.0) — overrides the base SC. Measures confidentiality impact on systems beyond the vulnerable component.',
+  MSI:  'Modified Subsequent System Integrity (v4.0) — overrides the base SI. Safety override (S) forces the score to 10. Measures integrity impact on subsequent systems.',
+  MSA:  'Modified Subsequent System Availability (v4.0) — overrides the base SA. Safety override (S) forces the score to 10. Measures availability impact on subsequent systems.',
+};
+
+function _attachMetricTip(el, id) {
+  const desc = _METRIC_DESC[id]; if (!desc) return;
+  el.style.cursor = 'help';
+  el.addEventListener('mouseenter', e => _tip.show(desc, e.clientX + 14, e.clientY - 48));
+  el.addEventListener('mousemove',  e => _tip.move(e.clientX + 14, e.clientY - 48));
+  el.addEventListener('mouseleave', () => _tip.hide());
+}
+
+/* ── Shared chip factory (panel + modal, synced via data-id/data-opt) ── */
+function _buildReqChips(id, opts) {
+  const wrap = document.createElement('div'); wrap.className = 'req-chips';
+  opts.forEach(opt => {
+    const sev = _CHIP_SEVERITY[id]?.[opt];
+    const sevCls = (sev && sev !== 'blue') ? ` sev-${sev}` : '';
+    const c = document.createElement('button'); c.type = 'button';
+    c.className = `req-chip${sevCls}${_reqState[id] === opt ? ' on' : ''}`;
+    c.textContent = opt; c.dataset.id = id; c.dataset.opt = opt;
+    const tip = _M_TIPS[id]?.[opt];
+    if (tip) {
+      c.addEventListener('mouseenter', e => _tip.show(tip, e.clientX+14, e.clientY-48));
+      c.addEventListener('mousemove',  e => _tip.move(e.clientX+14, e.clientY-48));
+      c.addEventListener('mouseleave', () => _tip.hide());
+    }
+    c.addEventListener('click', () => {
+      _reqState[id] = opt;
+      document.querySelectorAll(`.req-chip[data-id="${id}"]`)
+        .forEach(x => x.classList.toggle('on', x.dataset.opt === opt));
+      _saveReq(); applyRequirements();
+    });
+    wrap.appendChild(c);
+  });
+  return wrap;
+}
+
+/* ── Compact panel: CR/IR/AR + button ── */
+function initReqMetrics() {
+  const grid = document.getElementById('reqMetricsGrid'); if (!grid) return;
+  grid.innerHTML = '';
+  _REQ_GROUPS[0].items.forEach(({id, l, opts}) => {
+    const row = document.createElement('div'); row.className = 'req-metric-row';
+    const lbl = document.createElement('span'); lbl.className = 'req-metric-label'; lbl.textContent = l;
+    _attachMetricTip(lbl, id);
+    row.appendChild(lbl); row.appendChild(_buildReqChips(id, opts)); grid.appendChild(row);
+  });
+  const calcBtn = document.createElement('button');
+  calcBtn.type = 'button'; calcBtn.className = 'req-calc-btn';
+  calcBtn.textContent = '🧮 Modified base metrics…';
+  calcBtn.addEventListener('click', openEnvCalc);
+  grid.appendChild(calcBtn);
+  const rst = document.createElement('button'); rst.type = 'button'; rst.className = 'req-reset-btn';
+  rst.textContent = '↺ Reset all metrics';
+  rst.addEventListener('click', resetEnvCalc);
+  grid.appendChild(rst);
+}
+
+/* ── Modal builder ── */
+function _buildEnvCalcContent(container) {
+  container.innerHTML = '';
+  _REQ_GROUPS.forEach(({label, items}) => {
+    const gl = document.createElement('div'); gl.className = 'req-group-label'; gl.textContent = label;
+    container.appendChild(gl);
+    items.forEach(({id, l, opts}) => {
+      const row = document.createElement('div'); row.className = 'req-metric-row';
+      const lbl = document.createElement('span'); lbl.className = 'req-metric-label'; lbl.textContent = l;
+      _attachMetricTip(lbl, id);
+      row.appendChild(lbl); row.appendChild(_buildReqChips(id, opts)); container.appendChild(row);
+    });
+  });
+}
+
+function openEnvCalc() {
+  const modal = document.getElementById('envCalcModal'); if (!modal) return;
+  _buildEnvCalcContent(document.getElementById('envCalcContent'));
+  modal.hidden = false; document.body.style.overflow = 'hidden';
+}
+function closeEnvCalc() {
+  const modal = document.getElementById('envCalcModal'); if (!modal) return;
+  modal.hidden = true; document.body.style.overflow = ''; _tip.hide();
+}
+function resetEnvCalc() {
+  Object.keys(_reqState).forEach(k => _reqState[k] = 'X');
+  _saveReq(); applyRequirements();
+  document.querySelectorAll('.req-chip[data-opt]').forEach(c => c.classList.toggle('on', c.dataset.opt === 'X'));
+}
+
+/* =================================================================
    SOURCE FILTER
    ================================================================= */
 const SOURCE_GROUPS = {
@@ -1817,7 +2479,6 @@ const SOURCE_GROUPS = {
   editors:   ["RedHat","SUSE","Debian","Ubuntu","Microsoft","Amazon","LibreOffice","PostgreSQL","Oracle","Xen"],
 };
 const ALL_SOURCES   = [...SOURCE_GROUPS.databases, ...SOURCE_GROUPS.editors];
-const LOCKED_SOURCES = new Set(); // all sources are toggleable
 const activeSources  = new Set(ALL_SOURCES);
 
 function applyFilter() {
@@ -1836,6 +2497,8 @@ function applyFilter() {
     const vis  = srcs.filter(s => activeSources.has(_n(s)));
     badge.style.display = vis.length ? "" : "none";
     const span = badge.querySelector(".sources"); if (span) span.textContent = vis.join(", ");
+    const wrap = badge.closest(".cvss-badge-wrap");
+    if (wrap) wrap.style.display = badge.style.display;
   });
   document.querySelectorAll(".ref-row[data-sources]").forEach(row => {
     const srcs = row.dataset.sources.split(",");
@@ -2118,7 +2781,10 @@ document.addEventListener("DOMContentLoaded", () => {
   input.addEventListener("input", () => { btn.disabled = !extractCveIds(input.value.toUpperCase()).length; });
   initFilterChips();
   initFieldChips();
+  _loadReq();
+  initReqMetrics();
   initLanding(); // init landing curtain data feeds
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEnvCalc(); });
 
   // Restore the sort from localStorage
   const savedSort = localStorage.getItem("cat_sort");
@@ -2179,13 +2845,15 @@ function updateClearSection() {
 function deleteCve(cve) {
   document.querySelector(`.cve-card[data-cve="${cve}"]`)?.remove();
   displayedCVEs.delete(cve); cveData.delete(cve); storageRemoveCve(cve); sessionRemove(cve);
+  
   updateClearSection(); refreshSummary();
   if (!document.querySelectorAll(".cve-card:not(.template)").length) expandCurtain();
 }
 
 function clearAllCves() {
   document.querySelectorAll(".cve-card:not(.template)").forEach(c => c.remove());
-  displayedCVEs.clear(); cveData.clear(); storageClearCves(); sessionClearAll();
+  displayedCVEs.clear(); cveData.clear();
+  storageClearCves(); sessionClearAll();
   updateClearSection(); refreshSummary();
   expandCurtain();
 }

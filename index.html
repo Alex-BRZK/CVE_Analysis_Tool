@@ -4,19 +4,44 @@
 <meta charset="UTF-8">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🐱</text></svg>">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="CVE Analysis Tool (CAT) — Free multi-source CVE lookup. Aggregate vulnerability data from NVD, Red Hat, Debian, Ubuntu, CISA KEV and more in one unified view.">
+<meta name="keywords" content="CVE, vulnerability, NVD, CVSS, CWE, CISA KEV, security, analysis, CVE lookup, CAPEC, sources">
+<meta name="author" content="Alexis Broniarczyk">
+<link rel="canonical" href="https://cve-analysis-tool.fr/">
 <title>CVE Analysis Tool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css">
 <!-- Prevent theme flash -->
 <script>(function(){document.documentElement.setAttribute("data-theme",localStorage.getItem("theme")||"light")})();</script>
+
+<!-- Open Graph (partage réseaux sociaux) -->
+<meta property="og:title" content="CVE Analysis Tool — Multi-source vulnerability lookup">
+<meta property="og:description" content="Free tool to aggregate CVE data from NVD, Red Hat, Debian, CISA KEV and more.">
+<meta property="og:url" content="https://cve-analysis-tool.fr/">
+<meta property="og:type" content="website">
+
+<!-- Schema.org structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "CVE Analysis Tool",
+  "url": "https://cve-analysis-tool.fr",
+  "description": "Free multi-source CVE vulnerability lookup tool",
+  "applicationCategory": "SecurityApplication",
+  "operatingSystem": "Any",
+  "offers": { "@type": "Offer", "price": "0" }
+}
+</script>
+
 <style>
 /* ── Field visibility (toggled via body classes) ── */
 body.hide-field-desc  .desc-table    {display:none!important}
-body.hide-field-cvss2 .cvss-badge[data-cvss-version="v2.0"]{display:none!important}
-body.hide-field-cvss3 .cvss-badge[data-cvss-version="v3.0"],
-body.hide-field-cvss3 .cvss-badge[data-cvss-version="v3.1"]{display:none!important}
-body.hide-field-cvss4 .cvss-badge[data-cvss-version="v4.0"]{display:none!important}
+body.hide-field-cvss2 .cvss-badge-wrap[data-cvss-version="v2.0"]{display:none!important}
+body.hide-field-cvss3 .cvss-badge-wrap[data-cvss-version="v3.0"],
+body.hide-field-cvss3 .cvss-badge-wrap[data-cvss-version="v3.1"]{display:none!important}
+body.hide-field-cvss4 .cvss-badge-wrap[data-cvss-version="v4.0"]{display:none!important}
 body.hide-field-cwe   [id^="cwe-"]  {display:none!important}
 body.hide-field-refs  .refs-details  {display:none!important}
 .main{display:flex;flex-direction:column;gap:20px;max-width:100%;padding:24px 24px}
@@ -84,7 +109,7 @@ body.hide-field-refs  .refs-details  {display:none!important}
 .source-badge.badge-cisa     {background:#003366}
 .source-badge.badge-xen      { background:#787879}
 .source-badge.badge-enisa    { background:#003f87}
-.cvss-section{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.cvss-section{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin-bottom:12px}
 .cvss-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;
   border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:12px;
   font-weight:600;color:#fff;text-decoration:none;transition:opacity .15s,transform .1s}
@@ -163,7 +188,7 @@ details[open] .refs-arrow{transform:rotate(90deg)}
 .options-btn.active{background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.4);color:var(--accent)}
 .options-panel{display:none;position:fixed;top:92px;right:16px;z-index:200;
   background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
-  box-shadow:0 8px 32px rgba(0,0,0,.18);padding:16px;min-width:300px;max-width:360px}
+  box-shadow:0 8px 32px rgba(0,0,0,.18);padding:16px;min-width:300px;max-width:360px;max-height:80vh;overflow-y:auto}
 .options-panel.open{display:block}
 .options-section{margin-bottom:16px}
 .options-section:last-child{margin-bottom:0}
@@ -430,6 +455,110 @@ details[open] .refs-arrow{transform:rotate(90deg)}
   .landing-inner{padding:14px 12px 20px}
   .stat-val{font-size:24px}
 }
+
+/* ── Environmental requirements ── */
+.cvss-badge-wrap{display:inline-flex;flex-direction:column;gap:3px;align-items:flex-start}
+.cvss-env-row{display:flex;align-items:center;gap:4px;padding-left:1px}
+.cvss-env-arrow{font-size:11px;color:var(--text-muted);opacity:.6;line-height:1;flex-shrink:0}
+.cvss-env-badge{display:inline-flex;padding:2px 6px;border-radius:var(--radius-sm);
+  font-family:var(--font-mono);font-size:10px;font-weight:700;color:#fff;
+  letter-spacing:.2px;white-space:nowrap;text-decoration:none;
+  transition:opacity .15s,transform .1s}
+.cvss-env-badge:hover{opacity:.82;transform:translateY(-1px)}
+.req-metrics-grid{display:flex;flex-direction:column;gap:7px;margin-bottom:4px}
+.req-metric-row{display:flex;align-items:center;gap:8px}
+.req-metric-label{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);
+  min-width:90px;flex-shrink:0}
+.req-chips{display:flex;gap:3px}
+.req-chip{padding:3px 8px;border-radius:3px;font-family:var(--font-mono);font-size:11px;
+  font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:var(--bg);
+  color:var(--text-muted);transition:all .12s;user-select:none}
+.req-chip.on{border-color:var(--accent);background:rgba(37,99,235,.1);color:var(--accent)}
+.req-chip.sev-red    { border-color:rgba(220,38,38,.4);  color:#dc2626; }
+.req-chip.sev-orange { border-color:rgba(234,88,12,.4);  color:#ea580c; }
+.req-chip.sev-yellow { border-color:rgba(202,138,4,.4);  color:#ca8a04; }
+.req-chip.sev-green  { border-color:rgba(22,163,74,.4);  color:#16a34a; }
+.req-chip.sev-red.on    { border-color:#ef4444; background:rgba(239,68,68,.14);  color:#b91c1c; }
+.req-chip.sev-orange.on { border-color:#f97316; background:rgba(249,115,22,.12); color:#c2410c; }
+.req-chip.sev-yellow.on { border-color:#eab308; background:rgba(234,179,8,.12);  color:#a16207; }
+.req-chip.sev-green.on  { border-color:#22c55e; background:rgba(34,197,94,.12);  color:#15803d; }
+[data-theme="dark"] .req-chip.sev-red    { border-color:rgba(248,113,113,.4); color:#f87171; }
+[data-theme="dark"] .req-chip.sev-orange { border-color:rgba(251,146,60,.4);  color:#fb923c; }
+[data-theme="dark"] .req-chip.sev-yellow { border-color:rgba(253,224,71,.4);  color:#fde047; }
+[data-theme="dark"] .req-chip.sev-green  { border-color:rgba(74,222,128,.4);  color:#4ade80; }
+[data-theme="dark"] .req-chip.sev-red.on    { border-color:#f87171; background:rgba(248,113,113,.15); color:#fca5a5; }
+[data-theme="dark"] .req-chip.sev-orange.on { border-color:#fb923c; background:rgba(251,146,60,.13);  color:#fdba74; }
+[data-theme="dark"] .req-chip.sev-yellow.on { border-color:#fde047; background:rgba(253,224,71,.12);  color:#fef08a; }
+[data-theme="dark"] .req-chip.sev-green.on  { border-color:#4ade80; background:rgba(74,222,128,.13);  color:#86efac; }
+
+.req-reset-btn{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);
+  background:none;border:none;cursor:pointer;padding:2px 0;margin-top:4px;
+  transition:color .12s;display:block}
+.req-reset-btn:hover{color:var(--cvss-critical)}
+
+.req-group-label{
+  font-family:var(--font-mono);font-size:10px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);
+  margin:10px 0 5px;display:flex;align-items:center;gap:6px;
+}
+.req-group-label::after{content:"";flex:1;height:1px;background:var(--border)}
+.req-group-label:first-child{margin-top:0}
+
+/* Compact calculator button */
+.req-calc-btn{
+  width:100%;padding:7px 12px;margin-top:8px;
+  font-family:var(--font-mono);font-size:12px;font-weight:600;text-align:left;
+  background:var(--bg);color:var(--text-muted);
+  border:1.5px solid var(--border);border-radius:var(--radius-sm);
+  cursor:pointer;transition:border-color .15s,color .15s;
+}
+.req-calc-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Environmental calculator modal */
+.env-calc-modal{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center}
+.env-calc-modal[hidden] { display: none; }
+
+.env-calc-overlay{position:absolute;inset:0;background:rgba(0,0,0,.5);cursor:pointer}
+.env-calc-panel{
+  position:relative;z-index:1;background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:0 16px 48px rgba(0,0,0,.25);
+  padding:20px;width:min(540px,95vw);max-height:85vh;
+  overflow-y:auto;display:flex;flex-direction:column;gap:12px;
+}
+.env-calc-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.env-calc-title{font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--text)}
+.env-calc-close{
+  width:28px;height:28px;border:1px solid var(--border);background:var(--bg);
+  cursor:pointer;color:var(--text-muted);border-radius:4px;
+  display:flex;align-items:center;justify-content:center;font-size:13px;
+  transition:background .15s,color .15s;
+}
+.env-calc-close:hover{background:var(--card-hover);color:var(--text)}
+.env-calc-footer{flex-shrink:0;padding-top:8px;border-top:1px solid var(--border)}
+
+/* req-group-label (utilisé dans la modale) */
+.req-group-label{
+  font-family:var(--font-mono);font-size:10px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);
+  margin:10px 0 5px;display:flex;align-items:center;gap:6px;
+}
+.req-group-label::after{content:"";flex:1;height:1px;background:var(--border)}
+.req-group-label:first-child{margin-top:0}
+
+/* Floating tooltip */
+#env-tip{
+  position:fixed;z-index:700;pointer-events:none;
+  background:#1e293b;color:#f8fafc;
+  font-family:var(--font-sans);font-size:11px;line-height:1.5;
+  padding:6px 10px;border-radius:5px;max-width:240px;
+  box-shadow:0 4px 12px rgba(0,0,0,.3);
+  opacity:0;transition:opacity .12s;
+}
+[data-theme="dark"] #env-tip{background:#e2e8f0;color:#1e293b}
+
+/* Options panel scrollable */
+.options-panel{max-height:80vh;overflow-y:auto}
+
 </style>
 </head>
 <body>
@@ -530,6 +659,11 @@ details[open] .refs-arrow{transform:rotate(90deg)}
     <div class="filter-chips" id="filterChipsEditors"></div> 
   </div>
 
+  <div class="options-section">
+    <div class="options-section-title">Requirements (Environmental)</div>
+    <div class="req-metrics-grid" id="reqMetricsGrid"></div>
+  </div>
+
   <div class="options-section" id="clearSection" style="display:none">
     <div class="options-section-title">Cards</div>
     <button class="clear-all-btn" onclick="clearAllCves()">
@@ -572,7 +706,19 @@ details[open] .refs-arrow{transform:rotate(90deg)}
     </div>
   </div>
 </footer>
-
+<div id="envCalcModal" class="env-calc-modal" hidden>
+  <div class="env-calc-overlay" onclick="closeEnvCalc()"></div>
+  <div class="env-calc-panel">
+    <div class="env-calc-header">
+      <span class="env-calc-title">🧮 Environmental Score Metrics</span>
+      <button class="env-calc-close" onclick="closeEnvCalc()" title="Close">✕</button>
+    </div>
+    <div id="envCalcContent" class="req-metrics-grid"></div>
+    <div class="env-calc-footer">
+      <button class="req-reset-btn" onclick="resetEnvCalc()">↺ Reset all metrics</button>
+    </div>
+  </div>
+</div>
 <script src="data/cwe.js"></script>
 <script src="app.js"></script>
 </body>

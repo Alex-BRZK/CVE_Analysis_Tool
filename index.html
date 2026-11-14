@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🐱</text></svg>">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="CVE Analysis Tool (CAT) — Free multi-source CVE lookup. Aggregate vulnerability data from NVD, Red Hat, Debian, Ubuntu, CISA KEV and more in one unified view.">
 <meta name="keywords" content="CVE, vulnerability, NVD, CVSS, CWE, CISA KEV, security, analysis, CVE lookup, CAPEC, sources">
@@ -259,9 +261,10 @@ details[open] .refs-arrow{transform:rotate(90deg)}
 .epss-trend {
   font-size: 11px; font-weight: 700; flex-shrink: 0; line-height: 1;
 }
-.epss-trend[data-dir="up"]     { color: #000000; }
-.epss-trend[data-dir="down"]   { color: #000000; }
-.epss-trend[data-dir="stable"] { opacity: .65; }
+.epss-trend[data-dir="up"]     { filter: brightness(0.9); }
+.epss-trend[data-dir="down"]   { filter: brightness(0.9); }
+.epss-trend[data-dir="stable"] { opacity: .55; }
+
 .epss-badge:hover { filter: brightness(1.08); }
 /* ── CVE Summary Panel — intégré dans header-search-row ── */
 .cve-summary{display:none;flex-direction:column;position:relative;overflow:visible;
@@ -559,6 +562,126 @@ details[open] .refs-arrow{transform:rotate(90deg)}
 /* Options panel scrollable */
 .options-panel{max-height:80vh;overflow-y:auto}
 
+/* ── Curtain stats ── */
+.curtain-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.cstat-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  min-width: 0;
+}
+.cstat-span2 { grid-column: span 2; }
+.cstat-value {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+.cstat-delta {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cvss-low);
+  margin-top: 2px;
+}
+.cstat-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.cstat-sublabel {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--cvss-high);
+  opacity: .75;
+  margin-top: 2px;
+  margin-bottom: 0;
+}
+/* EPSS bar chart */
+.cstat-bar-list { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.cstat-bar-row  { display: flex; align-items: center; gap: 7px; }
+.cstat-bar-key  {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 42px;
+  flex-shrink: 0;
+}
+.cstat-bar-wrap  { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.cstat-bar-fill  { height: 100%; border-radius: 3px; background: var(--accent); transition: width .4s ease; }
+.cstat-bar-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 38px;
+  text-align: right;
+  flex-shrink: 0;
+}
+/* CWE chart */
+.cstat-cwe-list    { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.cstat-cwe-row     { display: flex; flex-direction: column; gap: 3px; }
+.cstat-cwe-header  { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.cstat-cwe-bar-row { display: flex; align-items: center; gap: 7px; }
+.cstat-cwe-id {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  min-width: 68px;
+  flex-shrink: 0;
+}
+.cstat-cwe-id:hover { text-decoration: underline; }
+.cstat-cwe-bar-wrap { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.cstat-cwe-bar      { height: 100%; border-radius: 2px; background: var(--accent); transition: width .4s ease; }
+.cstat-cwe-name {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.cstat-cwe-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 24px;
+  text-align: right;
+  flex-shrink: 0;
+}
+/* Skeleton */
+.cstat-skel {
+  background: linear-gradient(90deg, var(--border) 25%, var(--card-hover) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 4px;
+}
+.cstat-span3 { grid-column: span 3; }
+@media (max-width: 760px) {
+  .curtain-stats { grid-template-columns: repeat(2, 1fr); }
+  .cstat-span3   { grid-column: 1 / -1; }
+}
+.cstat-full { grid-column: 1 / -1; }
+@media (max-width: 480px) {
+  .curtain-stats  { grid-template-columns: 1fr; }
+  .cstat-span2,
+  .cstat-span3    { grid-column: span 1; }
+}
+
 </style>
 </head>
 <body>
@@ -607,14 +730,17 @@ details[open] .refs-arrow{transform:rotate(90deg)}
             <strong>All retrieved information is fully sourced and accessible with one click for complete transparency.</strong></p>
         </div>
 
-      <!-- live feed carousel -->
-      <section class="landing-feeds">
+    <!-- live feed carousel -->
+    <section class="landing-feeds">
         <div class="landing-feeds-header">
           <div class="landing-sec-title" style="margin-bottom:0">Live feeds</div>
           <div id="feedFilterChips" class="feed-filter-chips"></div>
         </div>
         <div class="feed-scroll" id="cards-unified"></div>
       </section>
+      <!-- stats bar -->
+      <div class="curtain-stats" id="curtain-stats"></div>
+
     </div>
   </div>
 </div>

@@ -2,7 +2,7 @@
 
 > A client-side, zero-dependency web application that aggregates CVE vulnerability data in real time from multiple official sources — no installation required / no account required.
 
-![Version](https://img.shields.io/badge/version-v1.6-blue)
+![Version](https://img.shields.io/badge/version-v1.7-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 
@@ -29,7 +29,7 @@ Everything runs **100% client-side** — no backend, no installation, no data se
 - **Source status dots** — Each source shows a real-time coloured indicator (grey → loading, green → confirmed, red → not found, orange → not affected, black/white → network error).
 - **Progressive loading** — Skeleton cards are rendered immediately while data loads in the background.
 - **CVE navigator** — A compact dropdown in the search bar lists all active CVE cards with their CVSS severity colour; clicking one scrolls and highlights the target card.
-- **Source filtering** — Toggle individual sources on/off, organised into two groups — **Databases** (CVEList, NVD, ENISA) and **Editors** (vendor sources); all sources are freely toggleable. Preference is persisted in `localStorage`.
+- **Source filtering** — Toggle individual sources on/off, organised into two groups — **Databases** (CVEList, NVD, ENISA, CISA) and **Editors** (vendor sources); all sources are freely toggleable. Preference is persisted in `localStorage`.
 - **Field visibility** — Hide or show individual card sections (Description, CVSS v2/v3/v4, CWE, References) from the Options panel; preference is persisted in `localStorage`.
 - **Sort** — Sort cards by CVSS score, publication date, or CVE ID; preference is persisted in `localStorage`.
 - **Smart refresh** — The per-card ↻ button re-queries only failed/errored sources, including a silent retry of CVEList for reserved-but-unpublished CVEs.
@@ -39,6 +39,7 @@ Everything runs **100% client-side** — no backend, no installation, no data se
 - **CAPEC associations** — each CWE chip expands to show related CAPEC attack patterns, pulled from the local CWE database.
 - **EPSS trend indicator** — the EPSS badge shows a month-over-month evolution arrow (↑ / ↓ / stable) so you can see whether exploitation probability is rising.
 - **Environmental Requirements scoring** — a global Options panel lets you set Confidentiality, Integrity, and Availability Requirements (CR/IR/AR) once; CAT recomputes an environmental score for every CVSS v2, v3 and v4 badge across all cards using the NIST/FIRST formulas. A 🧮 button opens a full modal exposing all modified base metrics grouped by version (Common v3+v4: MAV/MAC/MPR; v3.x: MUI/Scope/MC/MI/MA; v4.0: MAT/MUI/MVC/MVI/MVA/MSC/MSI/MSA). Clicking the resulting `Env X.X` badge opens the FIRST reference calculator (or NVD for v2) pre-filled with the base vector and your requirements, all other environmental/temporal metrics left as Not Defined.
+- **Landing curtain statistics dashboard** — a four-panel overview below the live feed carousel.
 
 
 ---

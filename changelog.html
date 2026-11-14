@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🐱</text></svg>">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Changelog — CVE Analysis Tool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -271,11 +273,45 @@
       <div class="release-card current-release">
         <div class="release-card-top">
           <div>
-            <div class="release-version">v1.6 — Current</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Global environmental requirements · Env score badges · NVD pre-filled link</div>
+            <div class="release-version">v1.7 — Current</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Landing curtain statistics dashboard · NVD/CERT-EU/CISA KEV insights</div>
           </div>
           <div class="release-version-badges">
             <span class="release-tag tag-current">Current</span>
+            <span class="release-date">14/11/2026</span>
+          </div>
+        </div>
+        <div class="change-groups">
+          <div class="change-group">
+            <div class="change-group-label">Added</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">📊</span><span class="change-text"><strong>Curtain statistics dashboard</strong> — a new panel below the live feed carousel: total published CVEs (MITRE), CVEs published in the last 7 days, and current/previous year totals from NVD.</span></li>
+              <li class="change-item"><span class="change-icon">📰</span><span class="change-text"><strong>CERT-EU latest advisory</strong> — the most recent CERT-EU advisory (title, date, description) pulled from their RSS feed.</span></li>
+              <li class="change-item"><span class="change-icon">📈</span><span class="change-text"><strong>CISA KEV yearly trend chart</strong> — theme-aware inline SVG line chart of KEV entries added per year, with running total and current-year count.</span></li>
+              <li class="change-item"><span class="change-icon">🏷️</span><span class="change-text"><strong>Top CWEs in CISA KEV</strong> — bar chart of the 5 most frequent CWEs across the KEV catalog, computed client-side.</span></li>
+            </ul>
+            <div class="change-group-label">Improvement</div>
+            <ul class="change-list">
+              <li class="change-item"><span class="change-icon">📈</span><span class="change-text"><strong>Chunked NVD range queries</strong> — yearly counts now split into ≤120-day windows (NVD's max range) with throttling, avoiding 403 rate-limit errors.</span></li>
+              <li class="change-item"><span class="change-icon">💾</span><span class="change-text">Statistics are cached with the other curtain feeds with 1-hour TTL.</span></li>
+              <li class="change-item"><span class="change-icon">🩹</span><span class="change-text"><strong>NVD score provider</strong> — CVSS scores republished by NVD are now attributed to their real provider (e.g. VulDB) instead of NVD.</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── 1.6  ─────────────────────────────────────── -->
+    <div class="release">
+      <div class="release-dot latest"><div class="release-dot-inner"></div></div>
+      <div class="release-card">
+        <div class="release-card-top">
+          <div>
+            <div class="release-version">v1.6</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Global environmental requirements · Env score badges · NVD pre-filled link</div>
+          </div>
+          <div class="release-version-badges">
+            <span class="release-tag tag-feature">Feature</span>
             <span class="release-date">14/05/2026</span>
           </div>
         </div>
@@ -283,12 +319,12 @@
           <div class="change-group">
             <div class="change-group-label">Added</div>
             <ul class="change-list">
-              <li class="change-item"><span class="change-icon">🧮</span><span class="change-text"><strong>CVSS calculator</strong> — CIA Requirements added in the options panelplus a 🧮 button that opens a modal displaying all available CVSS change metrics.</span></li>
+              <li class="change-item"><span class="change-icon">🧮</span><span class="change-text"><strong>CVSS calculator</strong> — CIA Requirements added in the options panel, plus a 🧮 button that opens a modal displaying all available CVSS change metrics.</span></li>
               <li class="change-item"><span class="change-icon">🏷️</span><span class="change-text"><strong>Env score sub-badge</strong> — a compact <code>Env X.X</code> badge appears below each applicable CVSS base score badge (preceded by a ↳ arrow), colour-coded by severity, and sized to its content.</span></li>
             </ul>
             <div class="change-group-label">Improvement</div>
               <ul class="change-list">
-              <li class="change-item"><span class="change-icon">🔗</span><span class="change-text"><strong>FIRST calculator pre-filled link</strong> — clicking the <code>Env X.X</code> or <code>CVSS X.X</code>badge opens the FIRST reference CVSS calculator (v3.x and v4.0) or the NVD calculator (v2.0) in a new tab, with the base vector and environmental changes or requirements.</span></li>
+              <li class="change-item"><span class="change-icon">🔗</span><span class="change-text"><strong>FIRST calculator pre-filled link</strong> — clicking the <code>Env X.X</code> or <code>CVSS X.X</code> badge opens the FIRST reference CVSS calculator (v3.x and v4.0) or the NVD calculator (v2.0) in a new tab, with the base vector and environmental changes or requirements.</span></li>
             </ul>
             <div class="change-group-label">Fix</div>
             <ul class="change-list">
@@ -318,10 +354,10 @@
           <div class="change-group">
             <div class="change-group-label">Added</div>
             <ul class="change-list">
-              <li class="change-item"><span class="change-icon">📰</span><span class="change-text"><strong>Dynamic banner</strong> — a curtain displays relevant CVEs: high‑EPSS CVEs, recent KEV entries, newest and last cricital CVEs.</span></li>
+              <li class="change-item"><span class="change-icon">📰</span><span class="change-text"><strong>Dynamic banner</strong> — a curtain displays relevant CVEs: high‑EPSS CVEs, recent KEV entries, newest and last critical CVEs.</span></li>
               <li class="change-item"><span class="change-icon">🧩</span><span class="change-text"><strong>CAPEC associations added under CWE entries</strong> — each CWE now displays its related CAPEC attack patterns directly within the CWE section.</span></li>
               <li class="change-item"><span class="change-icon">📈</span><span class="change-text"><strong>EPSS evolution indicator</strong> — the EPSS score now includes a month‑over‑month evolution indicator.</span></li>
-              <li class="change-item"><span class="change-icon">📁</span><span class="change-text"><strong>CWE download</strong> — the CWE are now downloaded and formated in <code>data</code> folder, before being used.</span></li>
+              <li class="change-item"><span class="change-icon">📁</span><span class="change-text"><strong>CWE download</strong> — the CWE are now downloaded and formatted in <code>data</code> folder, before being used.</span></li>
             </ul>
           </div>
           <div class="change-group">
@@ -355,7 +391,7 @@
             <div class="change-group-label">Added</div>
             <ul class="change-list">
               <li class="change-item"><span class="change-icon">🔗</span><span class="change-text"><strong>Shareable permalink</strong> — A share button (🔗) next to each CVE title copies a direct URL (<code>?cves=CVE-XXXX-XXXXX</code>) to the clipboard. Opening that URL loads the CVE instantly, bypassing the session cache restore.</span></li>
-              <li class="change-item"><span class="change-icon">🗂️</span><span class="change-text"><strong>Source filter groups</strong> — The "Visible sources" panel is now split into two sub-groups: <strong>Databases</strong> (CVEList, NVD, ENISA) and <strong>Editors</strong> (all vendor sources). All sources are now fully toggleable.</span></li>
+              <li class="change-item"><span class="change-icon">🗂️</span><span class="change-text"><strong>Source filter groups</strong> — The "Visible sources" panel is now split into two sub-groups: <strong>Databases</strong> (CVEList, NVD, ENISA, CISA) and <strong>Editors</strong> (all vendor sources). All sources are now fully toggleable.</span></li>
             </ul>
             <div class="change-group-label">Improvement</div>
             <ul class="change-list">
@@ -691,13 +727,13 @@
             <div class="change-group-label">Improvement</div>
             <ul class="change-list">
               <li class="change-item"><span class="change-icon">➕</span><span class="change-text"><strong>CVSS deduplication</strong> — scores grouped by (version, score, vector) triplet; multiple sources sharing the same score merged into one badge with combined source labels</span></li>
-              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improvement of the interface</li>
+              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improvement of the interface (redesign of the HTML/CSS graphic charter)</span></li>
             </ul>
           </div>
         </div>
         <div class="screenshots-area">
           <div class="screenshots-label">Screenshot</div>
-          <img src="Screenshot/screenshot-v0.4.png" alt="Screenshot de la version" class="screenshot-static" loading="lazy" style= width:70%>
+          <img src="Screenshot/screenshot-v0.4.png" alt="v0.4 screenshot" class="screenshot-static" loading="lazy" style= "width:70%">
         </div>
       </div>
     </div>
@@ -732,7 +768,7 @@
             </ul>
             <div class="change-group-label">Improvement</div>
             <ul class="change-list">
-              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improvement of the interface (redesign of the HTML/CSS graphic charter)</li>
+              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improvement of the interface (redesign of the HTML/CSS graphic charter)</span></li>
             </ul>
           </div>
         </div>
@@ -767,13 +803,13 @@
             </ul>
             <div class="change-group-label">Improvement</div>
             <ul class="change-list">
-              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improvement of the interface (redesign of the HTML/CSS graphic charter)</li>
+              <li class="change-item"><span class="change-icon">🔧</span><span class="change-text">Improvement of the interface (redesign of the HTML/CSS graphic charter)</span></li>
             </ul>
           </div>
         </div>
         <div class="screenshots-area">
           <div class="screenshots-label">Screenshot</div>
-          <img src="Screenshot/screenshot-v0.2.png" alt="Screenshot version 0.2" class="screenshot-static" loading="lazy" style= width:60%>
+          <img src="Screenshot/screenshot-v0.2.png" alt="v0.2 screenshot" class="screenshot-static" loading="lazy" style= "width:60%">
         </div>
       </div>
     </div>
@@ -803,7 +839,7 @@
         </div>
         <div class="screenshots-area">
           <div class="screenshots-label">Screenshot</div>
-          <img src="Screenshot\screenshot-v0.1.png" alt="Screenshot version 0.1" class="screenshot-static" loading="lazy">
+          <img src="Screenshot/screenshot-v0.1.png" alt="v0.1 screenshot" class="screenshot-static" loading="lazy">
         </div>
       </div>
     </div>

@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🐱</text></svg>">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Technical Documentation — CVE Analysis Tool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -182,6 +184,7 @@ pre .c { color: var(--text-muted); }            /* comment */
       <li class="toc-item"><a class="toc-link sub" href="#curtain-feeds">Data feeds</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#curtain-cache">Session cache</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#curtain-carousel">Carousel rendering</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#curtain-stats">Statistics dashboard</a></li>
       <li class="toc-sep"></li>
       <li class="toc-item"><a class="toc-link" href="#sources">Data sources</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#src-cvelist">CVEList</a></li>
@@ -298,9 +301,7 @@ pre .c { color: var(--text-muted); }            /* comment */
 
   <h3 class="section-subtitle" id="curtain-feeds">Data feeds</h3>
   <p class="doc-p">
-    Four asynchronous fetches are launched in parallel on page load. Each resolves independently and
-    triggers a debounced carousel rebuild (60 ms) to avoid redundant DOM operations when multiple sources
-    settle simultaneously.
+    Four asynchronous fetches are launched in parallel on page load.
   </p>
   <div class="source-meta-grid" style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin:12px 0 18px;font-size:13px;max-width:720px">
     <span class="meta-label">NVD Latest</span>
@@ -332,6 +333,33 @@ pre .c { color: var(--text-muted); }            /* comment */
     Toggling a feed filter chip instantly rebuilds the carousel from already-loaded data, with no
     new fetch triggered.
   </p>
+
+  <h3 class="section-subtitle" id="curtain-stats">Statistics dashboard</h3>
+  <p class="doc-p">
+    Below the carousel, a four-panel dashboard (<code>#curtain-stats</code>) surfaces global vulnerability
+    metrics independent of any specific card. It is populated once, in parallel with the carousel feeds,
+    and rendered progressively as each source resolves.
+  </p>
+  <div class="source-meta-grid" style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin:12px 0 18px;font-size:13px;max-width:720px">
+    <span class="meta-label">NVD Published</span>
+    <span class="meta-val">Total CVE count from <code>cveawg.mitre.org/api/cve_count</code>; last 7 days, current year, and previous year via chunked NVD REST API v2 count queries (<code>resultsPerPage=1</code>, reading <code>totalResults</code>).</span>
+    <span class="meta-label">CERT-EU</span>
+    <span class="meta-val"><code>cert.europa.eu/publications/security-advisories-rss</code> — the latest item is parsed from the RSS/XML feed (title, date, truncated description).</span>
+    <span class="meta-label">CISA KEV trend</span>
+    <span class="meta-val">Computed client-side from the already-cached KEV feed (no extra request): entries grouped by year of <code>dateAdded</code>, rendered as an inline SVG line chart, with running total and current-year count.</span>
+    <span class="meta-label">Top CWEs</span>
+    <span class="meta-val">The 5 most frequent <code>CWE-*</code> values across the full KEV catalog, computed client-side, rendered as a bar chart linking to the CWE database.</span>
+  </div>
+  <p class="doc-p">
+    Because NVD's REST API v2 rejects <code>pubStartDate</code>/<code>pubEndDate</code> windows spanning more
+    than 120 days, yearly counts are computed by <code>_nvdCountInRange()</code>, which splits the range into
+    ≤120-day chunks, sums their <code>totalResults</code>, and waits 700 ms between chunks to respect NVD's
+    rate limit.
+  </p>
+  <div class="callout callout-info">
+    <span class="callout-icon">ℹ️</span>
+    <span>Statistics are fetched once and cached with the other curtain feeds in the existing <code>cat_curtain</code> <code>sessionStorage</code> entry (1-hour TTL) — no separate cache key is used. Chart colours use CSS variables and refresh automatically on theme toggle.</span>
+  </div>
 </section>
 
     <!-- SOURCES -->
@@ -398,7 +426,7 @@ pre .c { color: var(--text-muted); }            /* comment */
         </p>
         <div class="callout callout-warn">
         <span class="callout-icon">⚠️</span>
-        <span>Currently, all extracted scores are automatically marked as coming from NVD, while in reality <strong>NVD aggregates and republishes scores from other providers</strong>. This means that the <span class="source-card-badge badge-nvd">NVD</span> label does not guarantee that the score was calculated by NVD itself.
+        <span>NVD aggregates and republishes scores from other providers. Each metric carries a <code>source</code> field: only <code>nvd@nist.gov</code> is labelled <span class="source-card-badge badge-nvd">NVD</span>. Other values are resolved to the real provider (CNA <code>orgId</code> matched against CVEList, otherwise the e-mail domain, e.g. <code>cna@vuldb.com</code> → VulDB). Identical scores from several providers are still merged into one badge.
         </span>
         </div>
       </div>
@@ -671,7 +699,7 @@ pre .c { color: var(--text-muted); }            /* comment */
           <span class="meta-label">Advisory URL</span>
           <span class="meta-val meta-url">https://xenbits.xen.org/xsa/advisory-${xsaNum}.html</span>
           <span class="meta-label">Format</span>
-          <span class="meta-val">HMTL + JSON</span>
+          <span class="meta-val">HTML + JSON</span>
         </div>
         <p class="doc-p" style="margin-bottom:8px">
           The strategy is to check whether the CVE is known to Xen; if so, the name of the associated advisory is retrieved to extract the relevant information.
@@ -746,10 +774,10 @@ pre .c { color: var(--text-muted); }            /* comment */
 
       <h3 class="section-subtitle" id="cwe-logic">CWE collection</h3>
       <p class="doc-p">
-        The CWE is information are retrieve in <code>cwe.js</code>.
+        The CWE information are retrieve from <code>cwe.js</code>.
       </p>
       <p class="doc-p">
-        If any CWE entry is missing a name after collection, one function scrape the CWE detail page from <code>cwe.mitre.org</code> and extract the title from the page's <code>&lt;title&gt;</code> tag.
+        If any CWE entry is missing a name after collection, a fallback function scrapes the CWE detail page from <code>cwe.mitre.org</code> and extract the title from the page's <code>&lt;title&gt;</code> tag.
       </p>
 
       <h3 class="section-subtitle" id="ref-logic">Reference filtering</h3>
@@ -770,7 +798,7 @@ pre .c { color: var(--text-muted); }            /* comment */
       <h3 class="section-subtitle" id="epss-logic">EPSS scoring</h3>
       <p class="doc-p">
         EPSS scoring is retrieved from <code>first.org/epss</code>. 
-        One function queries the official EPSS API and retrieves the latest daily score, then is compare to the score a month ago, depending of evolution observed an indication will show the trend.
+        One function queries the official EPSS API and retrieves the latest daily score, then compared to the score from a month ago; an arrow indicates the trend.
       </p>
 
       <h3 class="section-subtitle" id="env-logic">Environmental requirements</h3>
@@ -869,7 +897,7 @@ pre .c { color: var(--text-muted); }            /* comment */
           <span class="meta-label">cat_fields</span>
           <span class="meta-val">JSON object mapping field keys to booleans. (<code>localStorage</code>)</span>
           <span class="meta-label">cat_req</span>
-          <span class="meta-val">JSON object with CR, IR, AR keys — Environmental requirement settings. (<code>localStorage</code>)</span>
+          <span class="meta-val">JSON object with CR, IR, AR keys and all modified base metric keys — Environmental requirement settings. (<code>localStorage</code>)</span>
           <span class="meta-label">theme</span>
           <span class="meta-val"><code>"light"</code> or <code>"dark"</code>. (<code>localStorage</code>)</span>
         </div>
@@ -905,7 +933,7 @@ pre .c { color: var(--text-muted); }            /* comment */
       <h3 class="section-subtitle" id="ui-filter-groups">Source filter groups</h3>
       <p class="doc-p">
         The "Visible sources" panel is divided into two sub-groups:
-        <strong>Databases</strong> (CVEList, NVD, ENISA) and <strong>Editors</strong> (all vendor sources).
+        <strong>Databases</strong> (CVEList, NVD, ENISA, CISA) and <strong>Editors</strong> (all vendor sources).
         All sources are fully toggleable.
       </p>
 

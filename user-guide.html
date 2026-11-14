@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🐱</text></svg>">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>User Guide — CVE Analysis Tool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -304,6 +306,7 @@ code {
       <li class="toc-item"><a class="toc-link" href="#landing">Landing feed</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#landing-cards">Feed cards</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#landing-filter">Feed filter</a></li>
+      <li class="toc-item"><a class="toc-link sub" href="#landing-stats">Statistics dashboard</a></li>
       <li class="toc-item"><a class="toc-link" href="#search">Searching for CVEs</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#single">Single CVE lookup</a></li>
       <li class="toc-item"><a class="toc-link sub" href="#batch">Batch search</a></li>
@@ -401,6 +404,18 @@ code {
         that window, the banner renders instantly with no network requests. The cache is cleared when the
         tab is closed.</span>
       </div>
+
+      <h3 class="section-subtitle" id="landing-stats">Curtain dashboard</h3>
+      <p class="doc-p">
+        Below the feed carousel, a dashboard gives a global snapshot of the vulnerability landscape,
+        independent of any specific CVE:
+      </p>
+      <ul style="font-size:14px;line-height:1.9;padding-left:20px;max-width:680px;margin-bottom:14px">
+        <li><strong>NVD Published CVEs</strong> — total CVEs published (all time), last 7 days, current year (partial), and previous full year.</li>
+        <li><strong>CERT-EU latest advisory</strong> — the most recent CERT-EU security advisory, with a short summary and a direct link.</li>
+        <li><strong>CISA KEV — entries per year</strong> — a line chart of vulnerabilities added to the Known Exploited Vulnerabilities catalog each year, plus the all-time total and current year's count.</li>
+        <li><strong>Top CWEs in CISA KEV</strong> — the 5 weakness types that appear most often among actively exploited vulnerabilities.</li>
+      </ul>
     </section>
 
     <!-- SEARCH -->
@@ -753,7 +768,7 @@ code {
         The <em>Visible sources</em> section lets you enable or disable individual sources. When a source is disabled, all content attributed exclusively to it is hidden — its description row, CVSS badges, CWE chips, and reference links — unless another active source shares the same information.
       </p>
       <p class="doc-p">
-        Sources are organised into two sub-groups: <strong>Databases</strong> (CVEList, NVD, ENISA) and <strong>Editors</strong> (all vendor sources). All sources — including CVEList and NVD — are freely toggleable. Preferences are persisted in <code>localStorage</code>.
+        Sources are organised into two sub-groups: <strong>Databases</strong> (CVEList, NVD, ENISA, CISA) and <strong>Editors</strong> (all vendor sources). All sources — including CVEList and NVD — are freely toggleable. Preferences are persisted in <code>localStorage</code>.
       </p>
 
       <h3 class="section-subtitle" id="sort">Sort</h3>

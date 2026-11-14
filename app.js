@@ -55,7 +55,8 @@ const DESC_SOURCE_URLS = {
   ENISA:      cve=>`https://euvdservices.enisa.europa.eu/api/enisaid?id=${encodeURIComponent(cve)}`,
 };
 
-const PROXY    = "__WORKER_PROXY__";
+//const PROXY    = "__WORKER_PROXY__";
+const PROXY    = "https://cyber.alex-brzk.workers.dev/?url=";
 const DELAY_MS = 400;
 
 /* =================================================================
@@ -266,7 +267,6 @@ function sessionLoad(cve) {
 }
 
 /* ── Remove / clear ── */
-function sessionRemove(cve) { _dataDel(cve); }
 function sessionClearAll()  { _dataDelAll(); }
 
 /* ── Landing curtain cache (sessionStorage, TTL 1 hour) ── */
@@ -352,6 +352,32 @@ function sortCvss(list) {
   return list.sort((a,b) => b.score !== a.score ? b.score - a.score : (w[b.version]||0) - (w[a.version]||0));
 }
 
+/** Resolve the real provider of an NVD metric (NVD only for nvd@nist.gov) */
+function nvdMetricSource(entry, cveListData) {
+  const src = String(entry?.source || "").trim();
+  if (!src || /^nvd@nist\.gov$/i.test(src)) return "NVD";
+  const id = src.toLowerCase();
+  // 1. Match against CNA / ADP orgId from CVEList (UUID case)
+  const cna = cveListData?.containers?.cna?.providerMetadata;
+  if (cna?.orgId?.toLowerCase() === id && cna.shortName) return normalizeText(cna.shortName);
+  const adp = getAdpContainers(cveListData).find(a => a.providerMetadata?.orgId?.toLowerCase() === id);
+  if (adp?.providerMetadata?.shortName) return normalizeText(adp.providerMetadata.shortName);
+  // 2. E-mail case: derive the organisation from the domain (cna@vuldb.com -> VulDB)
+  const KNOWN = { vuldb: "VulDB" };
+  const m = id.match(/@(?:[\w-]+\.)*([\w-]+)\.[a-z]+$/);
+  if (m) return KNOWN[m[1]] || m[1][0].toUpperCase() + m[1].slice(1);
+  // 3. Unresolved UUID: keep it distinct from NVD
+  return `CNA ${src.slice(0, 8)}`;
+}
+
+/** Push every NVD CVSS metric with its real provider */
+function pushNvdMetrics(list, nvdData, cveListData) {
+  const m = nvdData?.metrics; if (!m) return;
+  [["cvssMetricV40","v4.0"],["cvssMetricV31","v3.1"],["cvssMetricV30","v3.0"],["cvssMetricV2","v2.0"]]
+    .forEach(([key, ver]) => (m[key] || []).forEach(s =>
+      pushCvss(list, ver, s.cvssData, nvdMetricSource(s, cveListData))));
+}
+
 /* =================================================================
    CWE UTILITIES
    ================================================================= */
@@ -364,8 +390,6 @@ function pushCwe(list, id, name, source) {
 }
 /* =================================================================
    CWE LOCAL DATABASE — injected by <script src="data/cwe.js">
-   That script sets window._CWE_DB = { "ID": {n,d,c}, ... }
-   No fetch needed — works on file://, http:// and https://.
    Falls back to cwe.mitre.org scraping if the script is absent.
    ================================================================= */
 function getCweDb() {
@@ -1545,13 +1569,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
       if (cna) extractMetricsFromContainer(cna, cnaSource, cvssBase);
       // ADP containers (CVE Program enrichment, introduced 2024-07-31)
       getAdpContainers(cveListData).forEach(adp => extractMetricsFromContainer(adp, "CISA-ADP", cvssBase));
-      if (ctx.nvdData?.metrics) {
-        const m = ctx.nvdData.metrics;
-        (m.cvssMetricV40 || []).forEach(s => pushCvss(cvssBase, "v4.0", s.cvssData, "NVD"));
-        (m.cvssMetricV31 || []).forEach(s => pushCvss(cvssBase, "v3.1", s.cvssData, "NVD"));
-        (m.cvssMetricV30 || []).forEach(s => pushCvss(cvssBase, "v3.0", s.cvssData, "NVD"));
-        (m.cvssMetricV2  || []).forEach(s => pushCvss(cvssBase, "v2.0", s.cvssData, "NVD"));
-      }
+      pushNvdMetrics(cvssBase, ctx.nvdData, cveListData);
       sortCvss(cvssBase);
     }
 
@@ -2525,6 +2543,16 @@ function applyFilter() {
     const expanded  = chip.closest(".card-chips-right")?.classList.contains("chips-expanded");
     chip.style.display = (!active || (collapsed && !expanded)) ? "none" : "";
   });
+  document.querySelectorAll(".cve-card:not(.template)").forEach(card => {
+    const badges = Array.from(card.querySelectorAll(".cvss-badge[data-cvss-version]"))
+      .filter(b => b.style.display !== "none");
+    const scores = badges
+      .map(b => parseFloat(b.querySelector(".score")?.textContent ?? "-1"))
+      .filter(s => !isNaN(s) && s >= 0);
+    card.dataset.cvssMax = scores.length ? String(Math.max(...scores)) : "-1";
+  });
+  if (_currentSort === "cvss-desc" || _currentSort === "cvss-asc") applySort();
+  else refreshSummary();
 }
 
 /* Collapse non-ok source chips behind a "+N ▾" toggle button */
@@ -2673,6 +2701,14 @@ function initFilterChips() {
   SOURCE_GROUPS.editors.forEach(src => renderChip(src, edContainer));
 }
 
+function scrollToCard(card) {
+  const headerH = document.querySelector(".header")?.offsetHeight ?? 0;
+  const cardTop = card.getBoundingClientRect().top + window.scrollY - headerH - 8;
+  window.scrollTo({ top: cardTop, behavior: "smooth" });
+  card.classList.add("summary-highlight");
+  setTimeout(() => card.classList.remove("summary-highlight"), 1100);
+}
+
 /* =================================================================
    CVE SUMMARY PANEL
    ================================================================= */
@@ -2731,11 +2767,7 @@ function refreshSummary() {
     item.appendChild(dot); item.appendChild(label); item.appendChild(copyBtn);
     item.addEventListener("click", () => {
       panel.classList.remove("open");
-      const headerH = document.querySelector(".header")?.offsetHeight ?? 0;
-      const cardTop = card.getBoundingClientRect().top + window.scrollY - headerH - 8;
-      window.scrollTo({ top: cardTop, behavior: "smooth" });
-      card.classList.add("summary-highlight");
-      setTimeout(() => card.classList.remove("summary-highlight"), 1100);
+      scrollToCard(card);
     });
     list.appendChild(item);
   });
@@ -2759,8 +2791,17 @@ document.addEventListener("click", e => {
 async function handleSearch() {
   const btn = document.getElementById("searchBtn"), input = document.getElementById("searchInput");
   const raw = input.value.trim(); if (!raw) return;
-  const newCves = extractCveIds(raw).filter(c => !displayedCVEs.has(c));
-  if (!newCves.length) { alert("All these CVEs are already displayed."); return; }
+  const allCves = extractCveIds(raw);
+  const newCves = allCves.filter(c => !displayedCVEs.has(c));
+  if (!newCves.length) {
+    // All already displayed — scroll to the first one instead of alerting
+    const existing = allCves.find(c => displayedCVEs.has(c));
+    const card = existing && document.querySelector(`.cve-card[data-cve="${existing}"]`);
+    if (card) scrollToCard(card);
+    input.value = "";
+    btn.disabled = true;
+    return;
+  }
   retractCurtain();
   getXenJson();                                         // pre-warm Xen advisory index
   if (newCves.length > 1) prefetchEpssBatch(newCves);  // batch EPSS for multi-CVE search
@@ -2844,8 +2885,7 @@ function updateClearSection() {
 
 function deleteCve(cve) {
   document.querySelector(`.cve-card[data-cve="${cve}"]`)?.remove();
-  displayedCVEs.delete(cve); cveData.delete(cve); storageRemoveCve(cve); sessionRemove(cve);
-  
+  displayedCVEs.delete(cve); cveData.delete(cve); storageRemoveCve(cve);
   updateClearSection(); refreshSummary();
   if (!document.querySelectorAll(".cve-card:not(.template)").length) expandCurtain();
 }
@@ -2916,6 +2956,28 @@ async function refreshCve(cve) {
   })());
 
   await Promise.allSettled(tasks);
+
+  // Recover missing date from any available source
+  const _cardEl = document.querySelector(`.cve-card[data-cve="${cve}"]`);
+  if (_cardEl && !_cardEl.dataset.date) {
+    const pub = ctx.cveListData?.cveMetadata?.datePublished || ctx.nvdData?.published || null;
+    if (pub) {
+      _cardEl.dataset.date = pub;
+      const _dateEl = _cardEl.querySelector(".card-meta-row .date");
+      if (_dateEl) { _dateEl.textContent = new Date(pub).toLocaleDateString("en-GB"); }
+      else {
+        const _metaRow = _cardEl.querySelector(".card-meta-row");
+        if (_metaRow) {
+          const _sep = document.createElement("span"); _sep.className = "sep"; _sep.textContent = "•";
+          const _de  = document.createElement("span"); _de.className  = "date";
+          _de.textContent = new Date(pub).toLocaleDateString("en-GB");
+          const _assigner = _metaRow.querySelector(".assigner");
+          _assigner ? _assigner.after(_sep, _de) : (_metaRow.appendChild(_sep), _metaRow.appendChild(_de));
+        }
+      }
+    }
+  }
+
   if (btn) btn.classList.remove("spinning");
   stored.refsSpinnerEl.style.display = "none";
   sessionSave(cve, ctx, stored.cvssBase);
@@ -2928,11 +2990,7 @@ async function runSourceFetch(srcName, cve, stored) {
       case "NVD": {
         setDot("NVD","wait");
         const r = await fetchNvdData(cve); ctx.nvdData = r?.data||null; ctx.nvdResult = r;
-        if (ctx.nvdData?.metrics) { const m=ctx.nvdData.metrics;
-          (m.cvssMetricV40||[]).forEach(s=>pushCvss(cvssBase,"v4.0",s.cvssData,"NVD"));
-          (m.cvssMetricV31||[]).forEach(s=>pushCvss(cvssBase,"v3.1",s.cvssData,"NVD"));
-          (m.cvssMetricV30||[]).forEach(s=>pushCvss(cvssBase,"v3.0",s.cvssData,"NVD"));
-          (m.cvssMetricV2 ||[]).forEach(s=>pushCvss(cvssBase,"v2.0",s.cvssData,"NVD")); sortCvss(cvssBase); }
+        pushNvdMetrics(cvssBase, ctx.nvdData, ctx.cveListData); sortCvss(cvssBase);
         refreshCard(); setDot("NVD", r?.networkError?"networkerror":r?.data?"ok":"fail"); break;
       }
       case "RedHat": {
@@ -3371,6 +3429,376 @@ async function _enrichLandingCwes(...containerIds) {
   });
 }
 
+/* NVD enforces a 120-day max range between pubStartDate/pubEndDate.
+   Split larger ranges into chunks and sum totalResults. */
+const NVD_MAX_RANGE_DAYS = 120;
+async function _nvdCountInRange(start, end) {
+  const chunkMs = NVD_MAX_RANGE_DAYS * 86400000;
+  const fmt = ms => new Date(ms).toISOString().slice(0, 19) + '.000';
+  let total = 0;
+  for (let cursor = start.getTime(); cursor < end.getTime(); cursor += chunkMs) {
+    const chunkEnd = Math.min(cursor + chunkMs, end.getTime());
+    const r = await proxyFetchWithStatus(
+      `https://services.nvd.nist.gov/rest/json/cves/2.0?pubStartDate=${fmt(cursor)}&pubEndDate=${fmt(chunkEnd)}&resultsPerPage=1`,
+      'json'
+    );
+    if (r.httpStatus !== 200 || r.data?.totalResults == null) return null;
+    total += r.data.totalResults;
+    if (chunkEnd < end.getTime()) await wait(700); // throttle — avoid NVD rate-limit (403)
+  }
+  return total;
+}
+
+/* ── Robust date parser for CERT-EU RSS (handles non-ISO / localized formats) ── */
+function _parseCertDate(str) {
+  if (!str) return null;
+  const native = new Date(str);
+  if (!isNaN(native)) return native;
+  // Fallback: "DD Mon YYYY" with French month abbreviations
+  const FR_MONTHS = { jan:0, fév:1, feb:1, mar:2, avr:3, apr:3, mai:4, may:4, juin:5, jun:5,
+                       juil:6, jul:6, août:7, aug:7, sep:8, oct:9, nov:10, déc:11, dec:11 };
+  const m = str.match(/(\d{1,2})\s+([a-zâéû.]+)\.?\s+(\d{4})/i);
+  if (m) {
+    const mon = FR_MONTHS[m[2].toLowerCase().slice(0,3).replace('û','u')];
+    if (mon != null) return new Date(Date.UTC(+m[3], mon, +m[1]));
+  }
+  // Fallback: "DD/MM/YYYY"
+  const m2 = str.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m2) return new Date(Date.UTC(+m2[3], +m2[2]-1, +m2[1]));
+  return null;
+}
+
+/* ── Curtain stats — fetch NVD totals + EPSS high count (CISA computed locally) ── */
+async function _fetchCurtainStats(cisaData) {
+  const year = new Date().getFullYear();
+  const nowDate = new Date();
+  const now = nowDate.toISOString().slice(0, 19) + '.000';
+  const sevenDaysAgo = `${new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)}T00:00:00.000`;
+  const yearStart    = `${year}-01-01T00:00:00.000`;
+  const prevYearS    = `${year - 1}-01-01T00:00:00.000`;
+  const prevYearE    = `${year - 1}-12-31T23:59:59.000`;
+
+  // CISA local stats — no network
+  const cisaVulns     = cisaData?.vulnerabilities || [];
+  const cisaTotal     = cisaVulns.length;
+  const cisaThisYear  = cisaVulns.filter(v => (v.dateAdded || '').startsWith(String(year))).length;
+
+  const yCounts = {};
+  cisaVulns.forEach(v => {
+    const y = (v.dateAdded || '').slice(0, 4);
+    if (/^\d{4}$/.test(y)) yCounts[y] = (yCounts[y] || 0) + 1;
+  });
+  const kevByYear = Object.entries(yCounts)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([y, count]) => ({ year: y, count, current: y === String(year) }));
+
+  const cweCounts = {};
+  cisaVulns.forEach(v => {
+    (Array.isArray(v.cwes) ? v.cwes : []).forEach(c => {
+      const id = String(c).trim().toUpperCase();
+      if (/^CWE-\d+$/.test(id)) cweCounts[id] = (cweCounts[id] || 0) + 1;
+    });
+  });
+  const topCwes       = Object.entries(cweCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, count]) => ({ id, count }));
+  const uniqueCwes    = Object.keys(cweCounts).length;
+  const firstYear     = kevByYear.length ? parseInt(kevByYear[0].year) : year;
+  const kevAvgPerYear = Math.round(cisaTotal / Math.max(year - firstYear + 1, 1));
+
+  // Parallel: independent endpoints — no NVD rate-limit conflict between them
+  const nvdQ = u => proxyFetchWithStatus(`https://services.nvd.nist.gov/rest/json/cves/2.0?${u}&resultsPerPage=1`, 'json');
+  const [rMitre, rCert, rNvdWeek, nvdThisYearCount, nvdYear1Count] = await Promise.all([
+    proxyFetchWithStatus("https://cveawg.mitre.org/api/cve_count", "json"),
+    proxyFetchWithStatus("https://cert.europa.eu/publications/security-advisories-rss", "text"),
+    nvdQ(`pubStartDate=${sevenDaysAgo}&pubEndDate=${now}`),
+    _nvdCountInRange(new Date(yearStart), nowDate),
+    _nvdCountInRange(new Date(prevYearS), new Date(prevYearE)),
+  ]);
+
+  let certAdvisories = [];
+  if (rCert.httpStatus === 200 && rCert.data) {
+    const xml = new DOMParser().parseFromString(rCert.data, "text/xml");
+    certAdvisories = Array.from(xml.querySelectorAll("item")).slice(0, 1).map(item => ({
+      title: item.querySelector("title")?.textContent?.trim() || "",
+      link:  item.querySelector("link")?.textContent?.trim() || "",
+      desc:  item.querySelector("description")?.textContent
+               ?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160) || "",
+      date: item.querySelector("pubDate, dc\\:date, published, issued")?.textContent?.trim() || "",
+    }));
+  }
+
+  return {
+    cisaTotal, cisaThisYear, topCwes, kevByYear, uniqueCwes, kevAvgPerYear, certAdvisories,
+    nvdTotal:    rMitre.httpStatus === 200 ? (rMitre.data?.totalCount ?? null) : null,
+    nvdToday:    rNvdWeek.httpStatus  === 200 ? (rNvdWeek.data?.totalResults  ?? null) : null,
+    nvdThisYear: nvdThisYearCount,
+    nvdYear1:    nvdYear1Count,
+  };
+}
+
+/* ── SVG line chart for KEV entries per year ──
+   Uses CSS variables for all colors → auto-updates on theme change. */
+function _buildKevSvg(kevByYear) {
+  if (!kevByYear?.length) return null;
+  const W = 480, H = 130;
+  const PAD = { t: 26, r: 16, b: 28, l: 44 };
+  const pw = W - PAD.l - PAD.r, ph = H - PAD.t - PAD.b;
+  const n = kevByYear.length;
+  const maxCount = Math.max(...kevByYear.map(e => e.count), 1);
+
+  const pts = kevByYear.map((e, i) => ({
+    ...e,
+    x: PAD.l + (n < 2 ? pw / 2 : (i / (n - 1)) * pw),
+    y: PAD.t + ph - (e.count / maxCount) * ph,
+  }));
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const mk = t => document.createElementNS(ns, t);
+  const svg = mk('svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.style.cssText = 'width:100%;height:auto;display:block;overflow:visible;margin-top:10px';
+
+  // Gradient fill
+  const defs = mk('defs');
+  const grad = mk('linearGradient');
+  grad.setAttribute('id', 'kev-svg-grad');
+  grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+  grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
+  const s1 = mk('stop'); s1.setAttribute('offset', '0%');
+  s1.setAttribute('style', 'stop-color:var(--accent);stop-opacity:0.14');
+  const s2 = mk('stop'); s2.setAttribute('offset', '100%');
+  s2.setAttribute('style', 'stop-color:var(--accent);stop-opacity:0');
+  grad.appendChild(s1); grad.appendChild(s2);
+  defs.appendChild(grad); svg.appendChild(defs);
+
+  // Horizontal gridlines (top / mid / bottom)
+  [0, 0.5, 1].forEach(t => {
+    const y = PAD.t + t * ph;
+    const gl = mk('line');
+    gl.setAttribute('x1', PAD.l); gl.setAttribute('x2', W - PAD.r);
+    gl.setAttribute('y1', y); gl.setAttribute('y2', y);
+    gl.setAttribute('style', 'stroke:var(--border);stroke-width:1');
+    svg.appendChild(gl);
+    const lbl = mk('text');
+    lbl.setAttribute('x', PAD.l - 6); lbl.setAttribute('y', y + 3.5);
+    lbl.setAttribute('text-anchor', 'end');
+    lbl.setAttribute('style', 'fill:var(--text-muted);font-size:8px;font-family:JetBrains Mono,monospace');
+    lbl.textContent = Math.round(maxCount * (1 - t));
+    svg.appendChild(lbl);
+  });
+
+  // Area fill
+  const areaD = `M ${pts[0].x} ${PAD.t + ph} ${pts.map(p => `L ${p.x} ${p.y}`).join(' ')} L ${pts[n-1].x} ${PAD.t + ph} Z`;
+  const area = mk('path');
+  area.setAttribute('d', areaD);
+  area.setAttribute('fill', 'url(#kev-svg-grad)');
+  svg.appendChild(area);
+
+  // Line
+  const lineD = pts.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
+  const line = mk('path');
+  line.setAttribute('d', lineD);
+  line.setAttribute('style', 'fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round');
+  svg.appendChild(line);
+
+  // Per-point: x-label, value label, dot
+  pts.forEach(p => {
+    const col = p.current ? 'var(--cvss-high)' : 'var(--accent)';
+
+    // X-axis year label
+    const xl = mk('text');
+    xl.setAttribute('x', p.x); xl.setAttribute('y', H - 5);
+    xl.setAttribute('text-anchor', 'middle');
+    xl.setAttribute('style', `fill:${col};font-size:8px;font-family:JetBrains Mono,monospace;font-weight:${p.current ? '700' : '400'}`);
+    xl.textContent = p.year;
+    svg.appendChild(xl);
+
+    // Value label above dot
+    const vl = mk('text');
+    vl.setAttribute('x', p.x); vl.setAttribute('y', p.y - 7);
+    vl.setAttribute('text-anchor', 'middle');
+    vl.setAttribute('style', `fill:${col};font-size:8px;font-family:JetBrains Mono,monospace;font-weight:700`);
+    vl.textContent = p.count;
+    svg.appendChild(vl);
+
+    // Pulsing dashed ring for current year
+    if (p.current) {
+      const ring = mk('circle');
+      ring.setAttribute('cx', p.x); ring.setAttribute('cy', p.y); ring.setAttribute('r', '7');
+      ring.setAttribute('style', 'fill:none;stroke:var(--cvss-high);stroke-width:1.5;stroke-dasharray:3 2;opacity:0.55');
+      svg.appendChild(ring);
+    }
+
+    // Dot
+    const dot = mk('circle');
+    dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y);
+    dot.setAttribute('r', p.current ? '4' : '3');
+    dot.setAttribute('style', `fill:${col};stroke:var(--bg);stroke-width:2`);
+    svg.appendChild(dot);
+  });
+
+  return svg;
+}
+
+function _renderStatsSkeleton() {
+  const el = document.getElementById('curtain-stats'); if (!el) return;
+  el.innerHTML = '';
+  [{ cls: 'cstat-full', chartH: 0 }, { cls: 'cstat-span2', chartH: 70 }, { cls: 'cstat-span2', chartH: 60 }]
+    .forEach(({ cls, chartH }) => {
+      const c = document.createElement('div');
+      c.className = `cstat-card ${cls}`;
+      c.innerHTML = `
+        <div class="cstat-skel" style="height:8px;width:50%;margin-bottom:8px;border-radius:3px"></div>
+        <div class="cstat-skel" style="height:14px;width:40%;margin-bottom:5px;border-radius:4px"></div>
+        ${chartH ? `<div class="cstat-skel" style="height:${chartH}px;width:100%;margin-top:8px;border-radius:4px"></div>` : ''}`;
+      el.appendChild(c);
+    });
+}
+
+async function _renderStats(stats) {
+  const el = document.getElementById('curtain-stats'); if (!el) return;
+  if (!stats) { el.innerHTML = ''; return; }
+  el.innerHTML = '';
+  const year = new Date().getFullYear();
+  const db   = await getCweDb();
+  const fmt  = n => n != null ? Number(n).toLocaleString('en-US') : '—';
+
+  const _card  = (...cls) => { const d = document.createElement('div'); d.className = ['cstat-card', ...cls].filter(Boolean).join(' '); return d; };
+  const _label = txt => { const d = document.createElement('div'); d.className = 'cstat-label'; d.textContent = txt; return d; };
+  const _val   = (main, delta) => {
+    const d = document.createElement('div'); d.className = 'cstat-value'; d.textContent = main;
+    if (delta) { const s = document.createElement('span'); s.className = 'cstat-delta'; s.textContent = delta; d.appendChild(s); }
+    return d;
+  };
+
+  // ── Row 1: Stats : Total CVEs...  ──
+
+  // Shared helper: 2×2 centered grid of stat items
+  const _statGrid = items => {
+    const g = document.createElement('div');
+    g.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px';
+    items.forEach(({ label, value, hi }) => {
+      const b = document.createElement('div'); b.style.textAlign = 'center';
+      const v = document.createElement('div'); v.className = 'cstat-value'; v.style.fontSize = '18px';
+      if (hi) v.style.color = 'var(--cvss-high)';
+      v.textContent = value;
+      const l = document.createElement('div'); l.className = 'cstat-label'; l.textContent = label;
+      b.appendChild(v); b.appendChild(l); g.appendChild(b);
+    });
+    return g;
+  };
+
+  // Left block — NVD publication stats
+  const cL = _card('cstat-span2'); el.appendChild(cL);
+  cL.appendChild(_label('NVD — Published CVEs'));
+  cL.appendChild(_statGrid([
+    { label: 'Total CVEs (MITRE)',     value: fmt(stats.nvdTotal),    hi: false },
+    { label: 'Published last 7 days',    value: fmt(stats.nvdToday),    hi: true  },
+    { label: `${year} (partial)`,  value: fmt(stats.nvdThisYear), hi: true  },
+    { label: String(year - 1),     value: fmt(stats.nvdYear1),    hi: false },
+  ]));
+
+  // Right block — CISA KEV stats
+  const cR = _card('cstat-span2'); el.appendChild(cR);
+cR.appendChild(_label('CERT-EU — Latest Security Advisory'));
+
+const certList = document.createElement('div');
+certList.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-top:8px';
+
+(stats.certAdvisories || []).forEach(adv => {
+  const row = document.createElement('div');
+  row.style.cssText = 'border-bottom:1px solid var(--border);padding-bottom:6px';
+
+  const parsedDate = _parseCertDate(adv.date);
+  const dateFmt = parsedDate
+    ? parsedDate.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+    : '';
+
+  const titleRow = document.createElement('div');
+  titleRow.style.cssText = 'display:flex;align-items:baseline;gap:6px;flex-wrap:wrap';
+
+  const dateEl = document.createElement('span');
+  dateEl.style.cssText = 'font-family:var(--font-mono);font-size:9px;color:var(--text-muted);flex-shrink:0';
+  dateEl.textContent = dateFmt;
+
+  const titleEl = document.createElement('a');
+  titleEl.href = adv.link;
+  titleEl.target = '_blank';
+  titleEl.rel = 'noopener noreferrer';
+  titleEl.style.cssText = 'font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--accent);text-decoration:none;line-height:1.4';
+  titleEl.textContent = adv.title;
+  titleEl.addEventListener('mouseenter', () => titleEl.style.textDecoration = 'underline');
+  titleEl.addEventListener('mouseleave', () => titleEl.style.textDecoration = 'none');
+
+  titleRow.appendChild(dateEl);
+  titleRow.appendChild(titleEl);
+
+  const descEl = document.createElement('div');
+  descEl.style.cssText = 'font-size:11px;color:var(--text-muted);line-height:1.5;margin-top:2px';
+  descEl.textContent = adv.desc + (adv.desc.length >= 160 ? '…' : '');
+
+  row.appendChild(titleRow);
+  row.appendChild(descEl);
+  certList.appendChild(row);
+});
+
+if (!stats.certAdvisories?.length) {
+  const empty = document.createElement('div');
+  empty.style.cssText = 'font-size:12px;color:var(--text-muted);margin-top:8px';
+  empty.textContent = 'No advisories available.';
+  certList.appendChild(empty);
+}
+
+cR.appendChild(certList);
+
+  // ── Row 2: KEV trend (span 2) + Top CWEs (span 2) ──
+
+  // 3. CISA KEV line chart — total integrated in header (span 2)
+  if (stats.kevByYear?.length) {
+    const c3 = _card('cstat-span2'); el.appendChild(c3);
+    c3.appendChild(_label('CISA KEV — entries per year'));
+    // Mini-stats: total + current year, displayed inline
+    const meta = document.createElement('div');
+    meta.style.cssText = 'display:flex;gap:20px;margin-top:5px';
+    const mT = document.createElement('div');
+    mT.innerHTML = `<span class="cstat-value" style="font-size:15px">${fmt(stats.cisaTotal)}</span><span class="cstat-label" style="margin-left:5px">total</span>`;
+    const mY = document.createElement('div');
+    mY.innerHTML = `<span class="cstat-value" style="font-size:15px;color:var(--cvss-high)">${stats.cisaThisYear}</span><span class="cstat-label" style="margin-left:5px">${year} (partial)</span>`;
+    meta.appendChild(mT); meta.appendChild(mY);
+    c3.appendChild(meta);
+    const svg = _buildKevSvg(stats.kevByYear);
+    if (svg) c3.appendChild(svg);
+  }
+
+  // 4. Top CWEs in CISA KEV (span 2)
+  if (stats.topCwes?.length) {
+    const c4 = _card('cstat-span2'); el.appendChild(c4);
+    c4.appendChild(_label('Top CWEs in CISA KEV'));
+    const list = document.createElement('div'); list.className = 'cstat-cwe-list';
+    const maxCount = stats.topCwes[0].count;
+    stats.topCwes.forEach(({ id, count }) => {
+      const num    = id.replace(/^CWE-/i, '');
+      const name   = db?.[num]?.n || '';
+      const row    = document.createElement('div'); row.className = 'cstat-cwe-row';
+      const header = document.createElement('div'); header.className = 'cstat-cwe-header';
+      const idEl   = document.createElement('a'); idEl.className = 'cstat-cwe-id';
+      idEl.href = `https://cwe.mitre.org/data/definitions/${num}.html`;
+      idEl.target = '_blank'; idEl.rel = 'noopener noreferrer'; idEl.textContent = id;
+      header.appendChild(idEl);
+      if (name) { const nm = document.createElement('span'); nm.className = 'cstat-cwe-name'; nm.textContent = name.length > 55 ? name.slice(0, 55) + '…' : name; nm.title = name; header.appendChild(nm); }
+      const barRow  = document.createElement('div'); barRow.className = 'cstat-cwe-bar-row';
+      const barWrap = document.createElement('div'); barWrap.className = 'cstat-cwe-bar-wrap';
+      const bar     = document.createElement('div'); bar.className = 'cstat-cwe-bar';
+      bar.style.width = `${Math.round(count / maxCount * 100)}%`;
+      barWrap.appendChild(bar);
+      const cntEl = document.createElement('span'); cntEl.className = 'cstat-cwe-count'; cntEl.textContent = count;
+      barRow.appendChild(barWrap); barRow.appendChild(cntEl);
+      row.appendChild(header); row.appendChild(barRow);
+      list.appendChild(row);
+    });
+    c4.appendChild(list);
+  }
+}
+
 let _landingRawSources = null;
 const _activeFeedSources = new Set(["nvd","epss-top","cisa","critical"]);
 
@@ -3416,7 +3844,7 @@ function _initFeedFilterChips() {
 }
 
 /* ── Build mappers + render curtain from already-processed data ── */
-function _renderCurtainFromData({ cisaData, enisaCrit, nvdCves, epssTop5, epssMap }) {
+function _renderCurtainFromData({ cisaData, enisaCrit, nvdCves, epssTop5, epssMap, stats }) {
   const cisaVulns = cisaData
     ? [...(cisaData.vulnerabilities || [])].sort((a,b) => (b.dateAdded||"").localeCompare(a.dateAdded||"")).slice(0,5)
     : [];
@@ -3457,6 +3885,7 @@ function _renderCurtainFromData({ cisaData, enisaCrit, nvdCves, epssTop5, epssMa
   };
   _rebuildFeedCarousel();
   _enrichLandingCwes("cards-unified");
+  if (stats != null) _renderStats(stats);
 }
 
 /* ── Main init ── */
@@ -3465,6 +3894,7 @@ async function initLanding() {
   _landingInitDone = true;
   _initFeedFilterChips();
   _renderSkeletons("cards-unified", 8);
+  _renderStatsSkeleton();
 
   // Event delegation — covers originals and clones
   document.getElementById("cards-unified")?.addEventListener("click", e => {
@@ -3485,13 +3915,19 @@ async function initLanding() {
   }
 
   // Progressive render — each source triggers a carousel rebuild on arrival
-  const ps = { cisaData: null, enisaCrit: [], nvdCves: [], epssTop5: [], epssMap: {} };
+  const ps = { cisaData: null, enisaCrit: [], nvdCves: [], epssTop5: [], epssMap: {}, stats: null };
 
   // Debounce: avoids double DOM rebuild when 2 sources resolve near-simultaneously
   let _partialTimer = null;
   const _partial = () => { clearTimeout(_partialTimer); _partialTimer = setTimeout(() => _renderCurtainFromData(ps), 60); };
 
-  const p1 = getCisaKev().then(d => { ps.cisaData = d || null; if (d) _cisaKevCache = d; _partial(); }).catch(() => {});
+  const p1 = getCisaKev().then(async d => {
+    ps.cisaData = d || null;
+    if (d) _cisaKevCache = d;
+    _partial();
+    ps.stats = await _fetchCurtainStats(ps.cisaData).catch(() => null);
+    _renderStats(ps.stats);
+  }).catch(() => {});
   const p2 = _fetchEnisaList("critical").then(d => { ps.enisaCrit = d || []; _partial(); }).catch(() => {});
   const p3 = _fetchNvdLatest().then(d => { ps.nvdCves = d || []; _partial(); }).catch(() => {});
 
@@ -3530,5 +3966,7 @@ async function initLanding() {
 }
 
 /* Refresh charts on theme toggle */
-  new MutationObserver(() => { refreshAllEpssColors(); _rebuildFeedCarousel(); })
-  .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  new MutationObserver(() => {
+  refreshAllEpssColors();
+  if (_landingRawSources) _rebuildFeedCarousel();
+}).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });

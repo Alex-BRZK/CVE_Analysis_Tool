@@ -55,8 +55,7 @@ const DESC_SOURCE_URLS = {
   ENISA:      cve=>`https://euvdservices.enisa.europa.eu/api/enisaid?id=${encodeURIComponent(cve)}`,
 };
 
-//const PROXY    = "__WORKER_PROXY__";
-const PROXY    = "https://cyber.alex-brzk.workers.dev/?url=";
+const PROXY    = "__WORKER_PROXY__";
 const DELAY_MS = 400;
 
 /* =================================================================

@@ -338,12 +338,21 @@ function normalizeVector(version, raw) {
   const l = {"v4.0":11,"v3.1":8,"v3.0":8,"v2.0":6}[version];
   return l ? v.split("/").slice(0, l).join("/") : v;
 }
+
+
+function addSource(arr, name) {
+  const caps = s => (s.match(/[A-Z]/g) || []).length;
+  const i = arr.findIndex(s => s.toLowerCase() === name.toLowerCase());
+  if (i < 0) arr.push(name);
+  else if (caps(name) > caps(arr[i])) arr[i] = name;
+}
+
 function pushCvss(list, version, data, source) {
   if (data?.baseScore == null) return;
   const score = parseFloat(data.baseScore); if (isNaN(score)) return;
   const vector = normalizeVector(version, data.vectorString); if (!vector) return;
   const ex = list.find(c => c.version === version && c.score === score && c.vector === vector);
-  if (ex) { if (!ex.sources.includes(source)) ex.sources.push(source); }
+  if (ex) addSource(ex.sources, source);
   else list.push({ version, score, vector, sources: [source] });
 }
 function sortCvss(list) {
@@ -1494,7 +1503,7 @@ async function renderCve(cve, { skipStorage = false, cachedData = null } = {}) {
         pushCvss(cvssAll, c.version, { baseScore: c.score, vectorString: c.vector }, "ENISA");
       } else {
         const ex = cvssAll.find(x => x.version === c.version && x.score === c.score && x.vector === "");
-        if (ex) { if (!ex.sources.includes("ENISA")) ex.sources.push("ENISA"); }
+        if (ex) addSource(ex.sources, "ENISA");
         else     cvssAll.push({ version: c.version, score: c.score, vector: "", sources: ["ENISA"] });
       }
     });

@@ -393,7 +393,7 @@ function pushCwe(list, id, name, source) {
   if (!id) return;
   const c = String(id).trim().toUpperCase(); if (!/^CWE-\d+$/.test(c)) return;
   const ex = list.find(x => x.id === c);
-  if (ex) { if (name && !ex.name) ex.name = normalizeText(name); if (!ex.sources.includes(source)) ex.sources.push(source); }
+  if (ex) { if (name && !ex.name) ex.name = normalizeText(name); addSource(ex.sources, source); }
   else list.push({ id: c, name: normalizeText(name) || null, sources: [source] });
 }
 /* =================================================================
@@ -494,7 +494,7 @@ function pushRef(list, url, source) {
   if (!url || typeof url !== "string") return;
   const u = url.trim(); if (!u.startsWith("http")) return; if (REF_IGNORE.test(u)) return;
   const ex = list.find(r => r.url === u);
-  if (ex) { if (!ex.sources.includes(source)) ex.sources.push(source); }
+  if (ex) addSource(ex.sources, source);
   else list.push({ url: u, sources: [source] });
 }
 function collectRefs(cvl, nvd, rhC, suC, msV, ubRaw, cisaData, debianRefs, enisaRefs, notAffectedSources = new Set(), excludedUrls = new Set()) {

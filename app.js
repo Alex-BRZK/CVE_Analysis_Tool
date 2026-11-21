@@ -3671,7 +3671,12 @@ async function _renderStats(stats) {
   const fmt  = n => n != null ? Number(n).toLocaleString('en-US') : '—';
 
   const _card  = (...cls) => { const d = document.createElement('div'); d.className = ['cstat-card', ...cls].filter(Boolean).join(' '); return d; };
-  const _label = txt => { const d = document.createElement('div'); d.className = 'cstat-label'; d.textContent = txt; return d; };
+  const _label = (txt, href) => {
+    const d = document.createElement('div'); d.className = 'cstat-label';
+    if (!href) { d.textContent = txt; return d; }
+    const a = document.createElement('a'); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.textContent = txt; a.className = 'cstat-label-link'; d.appendChild(a); return d;
+  };
   const _val   = (main, delta) => {
     const d = document.createElement('div'); d.className = 'cstat-value'; d.textContent = main;
     if (delta) { const s = document.createElement('span'); s.className = 'cstat-delta'; s.textContent = delta; d.appendChild(s); }
@@ -3697,7 +3702,7 @@ async function _renderStats(stats) {
 
   // Left block — NVD publication stats
   const cL = _card('cstat-span2'); el.appendChild(cL);
-  cL.appendChild(_label('NVD — Published CVEs'));
+  cL.appendChild(_label('NVD — Published CVEs', 'https://nvd.nist.gov/vuln/search?resultType=statistics'));
   cL.appendChild(_statGrid([
     { label: 'Total CVEs (MITRE)',     value: fmt(stats.nvdTotal),    hi: false },
     { label: 'Published last 7 days',    value: fmt(stats.nvdToday),    hi: true  },
@@ -3707,7 +3712,7 @@ async function _renderStats(stats) {
 
   // Right block — CISA KEV stats
   const cR = _card('cstat-span2'); el.appendChild(cR);
-cR.appendChild(_label('CERT-EU — Latest Security Advisory'));
+  cR.appendChild(_label('CERT-EU — Latest Security Advisory', 'https://cert.europa.eu/publications/security-advisories/'));
 
 const certList = document.createElement('div');
 certList.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-top:8px';
